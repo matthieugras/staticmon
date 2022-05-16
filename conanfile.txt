@@ -1,0 +1,11 @@
+[requires]
+boost/1.78.0
+abseil/20211102.0
+fmt/8.1.1
+
+[generators]
+cmake
+
+[options]
+boost:without_locale=True
+boost:without_stacktrace=True
