@@ -3,3 +3,4 @@ tags
 builddir_debug
 compile_commands.json
 .cache/clangd/index
+builddir
