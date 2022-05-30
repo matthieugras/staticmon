@@ -9,20 +9,23 @@
 
 using namespace boost::mp11;
 
+template<typename T>
+using clean_monitor_cst_ty =
+  mp_if<std::is_same<T, std::string_view>, std::string,
+        mp_if<std::is_same<T, double>, double,
+              mp_if<std::is_same<T, std::int64_t>, std::int64_t,
+                    mp_if<std::is_same<T, std::string>, std::string, void>>>>;
+
 template<typename VarTy, typename VarId>
 struct pvar {
-  using type = VarTy;
+  using type = clean_monitor_cst_ty<VarTy>;
   using var = VarId;
 };
 
 template<typename Cst>
 struct pcst {
   using cst = Cst;
-  using value_type = typename Cst::value_type;
-  using type = mp_if<
-    std::is_same<value_type, std::string_view>, std::string,
-    mp_if<std::is_same<value_type, double>, double,
-          mp_if<std::is_same<value_type, std::int64_t>, std::int64_t, void>>>;
+  using type = clean_monitor_cst_ty<typename Cst::value_type>;
   using var = void;
 };
 
