@@ -5,7 +5,11 @@
 
 using namespace boost::mp11;
 
-template<class> inline constexpr bool always_false_v = false;
+template<class>
+inline constexpr bool always_false_v = false;
+
+template<typename T>
+using is_not_void = mp_not<std::is_void<T>>;
 
 template<std::int64_t i>
 using mp_int64_t = std::integral_constant<std::int64_t, i>;

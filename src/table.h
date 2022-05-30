@@ -23,10 +23,8 @@ decltype(auto) constexpr_if(Then &&then, OrElse &&or_else) {
   }
 }
 
-template<typename L, typename... Args>
-struct table : public absl::flat_hash_set<std::tuple<Args...>> {
-  using row_layout = L;
-};
+template<typename... Args>
+using table = absl::flat_hash_set<std::tuple<Args...>>;
 
 namespace detail {
   template<typename Unique1, typename Common1, typename Unique2, typename T1,
@@ -117,12 +115,8 @@ namespace detail {
 
 }// namespace detail
 
-template<typename Tab1, typename Tab2>
+template<typename L1, typename L2, typename T1, typename T2>
 struct get_join_layout {
-  using L1 = typename Tab1::row_layout;
-  using L2 = typename Tab2::row_layout;
-  using T1 = typename Tab1::key_type;
-  using T2 = typename Tab2::key_type;
   using impl = typename detail::get_join_layout_impl<L1, L2, T1, T2>;
   using l1_unique = typename impl::l1_unique;
   using l1_common = typename impl::l1_common;
@@ -136,10 +130,10 @@ struct get_join_layout {
 };
 
 
-template<typename Tab1, typename Tab2>
-typename get_join_layout<Tab1, Tab2>::result_tab_type
-table_join(const Tab1 &tab1, const Tab2 &tab2) {
-  using JoinInfo = get_join_layout<Tab1, Tab2>;
+template<typename L1, typename L2, typename T1, typename T2>
+typename get_join_layout<L1, L2, T1, T2>::result_tab_type
+table_join(const mp_rename<T1, table> &tab1, const mp_rename<T2, table> &tab2) {
+  using JoinInfo = get_join_layout<L1, L2, T1, T2>;
   if (tab1.empty() || tab2.empty())
     return typename JoinInfo::result_tab_type{};
   if constexpr (mp_empty<typename JoinInfo::l1_common>::value) {
