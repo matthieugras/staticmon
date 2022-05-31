@@ -54,6 +54,10 @@ struct mp_apply_idx_impl<L<E...>, Idxs> {
 template<typename Idxs, typename L>
 using mp_apply_idxs = typename mp_apply_idx_impl<Idxs, L>::type;
 
+template<typename LSize, typename Idxs>
+using mp_complement_idxs =
+  mp_filter_q<mp_bind<mp_not, mp_bind<mp_contains, Idxs, _1>>, mp_iota<LSize>>;
+
 template<typename Idxs>
 struct compute_projection_idxs_impl {
   using init_val = mp_list<mp_list<>, mp_size_t<0>>;

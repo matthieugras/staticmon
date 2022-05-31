@@ -12,15 +12,15 @@ using t_res_t = typename Term::template ResT<L, T>;
 
 template<typename VarId>
 struct tvar {
-  template<typename L, typename T>
+  template<typename L>
   using var_idx = mp_find<L, VarId>;
 
   template<typename L, typename T>
-  using ResT = mp_at<T, var_idx<L, T>>;
+  using ResT = mp_at<T, var_idx<L>>;
 
   template<typename L, typename T>
   static ResT<L, T> eval(const T &row) {
-    return std::get<var_idx<L, T>::value>(row);
+    return std::get<var_idx<L>::value>(row);
   }
 };
 

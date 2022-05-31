@@ -47,14 +47,10 @@ struct mpredicate {
   using var_idxs = mp_transform_q<mp_bind<mp_first, _1>, mp_second<tmp_two>>;
   using cst_tys = mp_rename<mp_apply_idxs<arg_tys, cst_idxs>, std::tuple>;
   using csts = mp_apply_idxs<pred_args, cst_idxs>;
-  using res_row_l = mp_apply_idxs<arg_vars, var_idxs>;
-  using res_row_t = mp_rename<mp_apply_idxs<arg_tys, var_idxs>, std::tuple>;
 
-  template<typename L, typename T>
-  struct result_info {
-    using ResL = res_row_l;
-    using ResT = res_row_t;
-  };
+  using ResT = mp_rename<mp_apply_idxs<arg_tys, var_idxs>, std::tuple>;
+  using ResL = mp_apply_idxs<arg_vars, var_idxs>;
+  using res_tab_t = mp_rename<ResT, table_util::table>;
 
   template<typename Event, typename... VarTys, typename... VarIdxs>
   auto project_event_vars(const Event &e, std::tuple<VarTys...>,
@@ -70,17 +66,13 @@ struct mpredicate {
             (std::get<CstTys>(e[CstIdxs::value]) == Csts::cst::value));
   }
 
-  template<typename L, typename T>
-  std::vector<mp_rename<typename result_info<L, T>::ResT, table_util::table>>
-  eval(database &db, const ts_list &ts) {
-    using res_row_t = typename result_info<L, T>::ResT;
-    using res_tab_t = mp_rename<res_row_t, table_util::table>;
+  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     const auto &cdb = db;
     auto it = cdb.find(PredId::value);
     if (it == cdb.cend())
       return std::vector<res_tab_t>(ts.size());
     if constexpr (mp_empty<var_idxs>::value && mp_empty<cst_idxs>::value) {
-      return std::vector<res_tab_t>(ts.size(), res_tab_t({res_row_t()}));
+      return std::vector<res_tab_t>(ts.size(), res_tab_t({ResT()}));
     } else {
       std::vector<res_tab_t> res;
       res.reserve(ts.size());
@@ -89,7 +81,7 @@ struct mpredicate {
         res_tab_t tab;
         for (const auto &ev : evl) {
           if (sat_constraint(ev, cst_tys{}, cst_idxs{}, csts{}))
-            tab.emplace(project_event_vars(ev, res_row_t{}, var_idxs{}));
+            tab.emplace(project_event_vars(ev, ResT{}, var_idxs{}));
         }
         res.emplace_back(std::move(tab));
       }

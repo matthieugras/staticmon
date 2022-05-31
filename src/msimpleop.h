@@ -12,23 +12,29 @@
 
 using namespace boost::mp11;
 
+template<typename L, typename T, typename F>
+using f_res_t = typename F::template result_info<L, T>::ResT;
+
+template<typename L, typename T, typename F>
+using f_res_l = typename F::template result_info<L, T>::ResL;
+
 template<typename L, typename VarL>
 using get_var_idx = mp_transform_q<mp_bind<mp_find, L, _1>, VarL>;
-
-template<typename LSize, typename Idxs>
-using complement_idxs =
-  mp_transform_q<mp_bind<mp_not, mp_bind<mp_contains, Idxs, _1>>,
-                 mp_iota<LSize>>;
 
 template<typename... Vars>
 struct mexists {
   template<typename L, typename T>
   struct idx_computation {
+    using l_vars = mp_list<Vars...>;
+    static_assert(!mp_empty<l_vars>::value,
+                  "exists must bind at least one variable");
+    static_assert(mp_all_of_q<l_vars, mp_bind<mp_contains, L, _1>>::value,
+                  "Exists var not found");
     using arg_size = mp_size<L>;
-    using drop_idxs = get_var_idx<L, mp_list<Vars...>>;
-    using keep_idxs = complement_idxs<arg_size, drop_idxs>;
-    using res_layout = mp_apply_idxs<keep_idxs, L>;
-    using res_type = mp_apply_idxs<keep_idxs, T>;
+    using drop_idxs = get_var_idx<L, l_vars>;
+    using keep_idxs = mp_complement_idxs<arg_size, drop_idxs>;
+    using res_layout = mp_apply_idxs<L, keep_idxs>;
+    using res_type = mp_apply_idxs<T, keep_idxs>;
   };
 
   template<typename L, typename T>
@@ -64,8 +70,8 @@ struct mandrel {
     static_assert(std::is_same_v<t1_res_t, t2_res_t>,
                   "terms in constraints must have same type");
     constexpr bool is_neg = IsNeg::value;
-    auto res1 = Term1::template eval<L, T>(row);
-    auto res2 = Term2::template eval<L, T>(row);
+    auto res1 = Term1::template eval<L>(row);
+    auto res2 = Term2::template eval<L>(row);
     static_assert(std::is_same_v<decltype(res1), t1_res_t>,
                   "term does not match computed type");
     static_assert(std::is_same_v<decltype(res1), t2_res_t>,
@@ -117,7 +123,7 @@ struct mandassign {
 
   template<typename L, typename T>
   static std::optional<typename result_info<L, T>::ResT> eval(T row) {
-    auto t_res = Term::template eval<L, T>(row);
+    auto t_res = Term::template eval<L>(row);
     static_assert(
       std::is_same_v<decltype(t_res), typename Term::template ResT<L, T>>,
       "term has not expected type");
@@ -138,7 +144,7 @@ struct simpleops<Op> {
 
   template<typename L, typename T>
   static std::optional<typename result_info<L, T>::ResT> eval(T row) {
-    return Op::template eval<L, T>(std::move(row));
+    return Op::template eval<L>(std::move(row));
   }
 };
 
@@ -154,11 +160,14 @@ struct simpleops<Op1, Op2, Ops...> {
 
   template<typename L, typename T>
   static std::optional<typename result_info<L, T>::ResT> eval(T row) {
-    f_res_t<L, T, Op1> op1_res = Op1::template eval<L, T>(std::move(row));
+    using op1_res_l = f_res_l<L, T, Op1>;
+    using op1_res_t = f_res_t<L, T, Op1>;
+    auto op1_res = Op1::template eval<L>(std::move(row));
+    static_assert(std::is_same_v<decltype(op1_res), std::optional<op1_res_t>>,
+                  "op1_res has invalid type");
     if (op1_res)
-      return simpleops<Op2, Ops...>::template eval<f_res_t<L, T, Op1>,
-                                                   f_res_l<L, T, Op1>>(
-        std::move(op1_res));
+      return simpleops<Op2, Ops...>::template eval<op1_res_l>(
+        std::move(*op1_res));
     else
       return std::nullopt;
   }
@@ -166,19 +175,15 @@ struct simpleops<Op1, Op2, Ops...> {
 
 template<typename Ops, typename MFormula>
 struct mfusedsimpleop {
-  template<typename L, typename T>
-  struct result_info {
-    using ResL = f_res_l<f_res_l<L, T, MFormula>, f_res_t<L, T, MFormula>, Ops>;
-    using ResT = f_res_t<f_res_l<L, T, MFormula>, f_res_t<L, T, MFormula>, Ops>;
-  };
+  using formula_res_l = typename MFormula::ResL;
+  using formula_res_t = typename MFormula::ResT;
+  using ResL = f_res_l<formula_res_l, formula_res_t, Ops>;
+  using ResT = f_res_t<formula_res_l, formula_res_t, Ops>;
+  using res_tab_t = mp_rename<ResT, table_util::table>;
+  using rec_tab_t = mp_rename<formula_res_t, table_util::table>;
 
-  template<typename L, typename T>
-  std::vector<mp_rename<typename result_info<L, T>::ResT, table_util::table>>
-  eval(database &db, const ts_list &ts) {
-    using res_row_t = typename result_info<L, T>::ResT;
-    using res_tab_t = mp_rename<res_row_t, table_util::table>;
-    using rec_tab_t = mp_rename<f_res_t<L, T, MFormula>, table_util::table>;
-    auto rec_res = f_.template eval<L>(db, ts);
+  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+    auto rec_res = f_.eval(db, ts);
     static_assert(std::is_same_v<decltype(rec_res), std::vector<rec_tab_t>>,
                   "table type unexpected");
     std::vector<res_tab_t> res;
@@ -187,10 +192,11 @@ struct mfusedsimpleop {
       res_tab_t tab;
       tab.reserve(rec_tab.size());
       for (const auto &row : rec_tab) {
-        auto row_new = Ops::template eval<f_res_l<L, T, MFormula>>(row);
-        static_assert(std::is_same_v<decltype(row_new), res_row_t>,
+        auto row_new = Ops::template eval<formula_res_l>(row);
+        static_assert(std::is_same_v<decltype(row_new), std::optional<ResT>>,
                       "unexpected row type");
-        tab.emplace(std::move(row_new));
+        if (row_new)
+          tab.emplace(std::move(*row_new));
       }
       res.emplace_back(std::move(tab));
     }
