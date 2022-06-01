@@ -89,8 +89,14 @@ struct tuminus {
   }
 };
 
-template<typename Term1, typename Term2>
-struct tplus {
+struct plus_tag;
+struct minus_tag;
+struct mult_tag;
+struct mod_tag;
+struct div_tag;
+
+template<typename Tag, typename Term1, typename Term2>
+struct binop_term_impl {
   template<typename L, typename T>
   using ResT = t_res_t<L, T, Term1>;
 
@@ -106,90 +112,33 @@ struct tplus {
                   "rec_res1 has wrong type");
     static_assert(std::is_same_v<decltype(rec_res2), t2_res_t>,
                   "rec_res2 has wrong type");
-    return rec_res1 + rec_res2;
+    if constexpr (std::is_same_v<Tag, plus_tag>) {
+      return rec_res1 + rec_res2;
+    } else if constexpr (std::is_same_v<Tag, minus_tag>) {
+      return rec_res1 - rec_res2;
+    } else if constexpr (std::is_same_v<Tag, mult_tag>) {
+      return rec_res1 * rec_res2;
+    } else if constexpr (std::is_same_v<Tag, mod_tag>) {
+      return rec_res1 % rec_res2;
+    } else if constexpr (std::is_same_v<Tag, div_tag>) {
+      return rec_res1 / rec_res2;
+    } else {
+      static_assert(always_false_v<Tag>, "unknown tag");
+    }
   }
 };
 
 template<typename Term1, typename Term2>
-struct tminus {
-  template<typename L, typename T>
-  using ResT = t_res_t<L, T, Term1>;
-
-  template<typename L, typename T>
-  static ResT<L, T> eval(const T &row) {
-    using t1_res_t = t_res_t<L, T, Term1>;
-    using t2_res_t = t_res_t<L, T, Term2>;
-    static_assert(std::is_same_v<t1_res_t, t2_res_t>,
-                  "computed types are not equal");
-    auto rec_res1 = Term1::template eval<L, T>(row);
-    auto rec_res2 = Term2::template eval<L, T>(row);
-    static_assert(std::is_same_v<decltype(rec_res1), t1_res_t>,
-                  "rec_res1 has wrong type");
-    static_assert(std::is_same_v<decltype(rec_res2), t2_res_t>,
-                  "rec_res2 has wrong type");
-    return rec_res1 - rec_res2;
-  }
-};
+struct tplus : binop_term_impl<plus_tag, Term1, Term2> {};
 
 template<typename Term1, typename Term2>
-struct tmult {
-  template<typename L, typename T>
-  using ResT = t_res_t<L, T, Term1>;
-
-  template<typename L, typename T>
-  static ResT<L, T> eval(const T &row) {
-    using t1_res_t = t_res_t<L, T, Term1>;
-    using t2_res_t = t_res_t<L, T, Term2>;
-    static_assert(std::is_same_v<t1_res_t, t2_res_t>,
-                  "computed types are not equal");
-    auto rec_res1 = Term1::template eval<L, T>(row);
-    auto rec_res2 = Term2::template eval<L, T>(row);
-    static_assert(std::is_same_v<decltype(rec_res1), t1_res_t>,
-                  "rec_res1 has wrong type");
-    static_assert(std::is_same_v<decltype(rec_res2), t2_res_t>,
-                  "rec_res2 has wrong type");
-    return rec_res1 * rec_res2;
-  }
-};
+struct tminus : binop_term_impl<minus_tag, Term1, Term2> {};
 
 template<typename Term1, typename Term2>
-struct tmod {
-  template<typename L, typename T>
-  using ResT = t_res_t<L, T, Term1>;
-
-  template<typename L, typename T>
-  static ResT<L, T> eval(const T &row) {
-    using t1_res_t = t_res_t<L, T, Term1>;
-    using t2_res_t = t_res_t<L, T, Term2>;
-    static_assert(std::is_same_v<t1_res_t, t2_res_t>,
-                  "computed types are not equal");
-    auto rec_res1 = Term1::template eval<L, T>(row);
-    auto rec_res2 = Term2::template eval<L, T>(row);
-    static_assert(std::is_same_v<decltype(rec_res1), t1_res_t>,
-                  "rec_res1 has wrong type");
-    static_assert(std::is_same_v<decltype(rec_res2), t2_res_t>,
-                  "rec_res2 has wrong type");
-    return rec_res1 % rec_res2;
-  }
-};
+struct tmult : binop_term_impl<mult_tag, Term1, Term2> {};
 
 template<typename Term1, typename Term2>
-struct tdiv {
-  template<typename L, typename T>
-  using ResT = t_res_t<L, T, Term1>;
+struct tmod : binop_term_impl<mod_tag, Term1, Term2> {};
 
-  template<typename L, typename T>
-  static ResT<L, T> eval(const T &row) {
-    using t1_res_t = t_res_t<L, T, Term1>;
-    using t2_res_t = t_res_t<L, T, Term2>;
-    static_assert(std::is_same_v<t1_res_t, t2_res_t>,
-                  "computed types are not equal");
-    auto rec_res1 = Term1::template eval<L, T>(row);
-    auto rec_res2 = Term2::template eval<L, T>(row);
-    static_assert(std::is_same_v<decltype(rec_res1), t1_res_t>,
-                  "rec_res1 has wrong type");
-    static_assert(std::is_same_v<decltype(rec_res2), t2_res_t>,
-                  "rec_res2 has wrong type");
-    return rec_res1 / rec_res2;
-  }
-};
+template<typename Term1, typename Term2>
+struct tdiv : binop_term_impl<div_tag, Term1, Term2> {};
