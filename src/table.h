@@ -14,17 +14,11 @@
 namespace table_util {
 using namespace boost::mp11;
 
-template<bool cond_v, typename Then, typename OrElse>
-decltype(auto) constexpr_if(Then &&then, OrElse &&or_else) {
-  if constexpr (cond_v) {
-    return std::forward<Then>(then);
-  } else {
-    return std::forward<OrElse>(or_else);
-  }
-}
-
 template<typename... Args>
 using table = absl::flat_hash_set<std::tuple<Args...>>;
+
+template<typename T>
+using tab_t_of_row_t = mp_rename<T, table>;
 
 namespace detail {
   template<typename Unique1, typename Common1, typename Unique2, typename T1,
@@ -34,7 +28,7 @@ namespace detail {
               mp_apply_idxs<T2, Unique2>>;
 
   template<typename L1, typename L2, typename T1, typename T2>
-  struct get_join_layout_impl {
+  struct join_info_impl {
     using l1_idx_map = mp_transform<mp_list, L1, mp_iota<mp_size<L1>>>;
     using l2_idx = mp_transform<mp_list, mp_iota<mp_size<L2>>, L2>;
     template<typename IdxVar>
@@ -53,97 +47,214 @@ namespace detail {
     using l1_common = mp_at_c<unzipped_common, 0>;
     using l2_common = mp_at_c<unzipped_common, 1>;
     using result_row_type =
-      detail::get_join_result_types_idxs<l1_unique, l1_common, l2_unique, T1,
-                                         T2>;
+      get_join_result_types_idxs<l1_unique, l1_common, l2_unique, T1, T2>;
     using result_row_idxs =
-      detail::get_join_result_types_idxs<l1_unique, l1_common, l2_unique, L1,
-                                         L2>;
+      get_join_result_types_idxs<l1_unique, l1_common, l2_unique, L1, L2>;
   };
 
-  template<typename Idxs, typename Tab>
-  auto make_join_map(const Tab &t) {
-    using T = typename Tab::key_type;
+  template<typename L1, typename L2, typename T1, typename T2>
+  struct join_info {
+    using impl = join_info_impl<L1, L2, T1, T2>;
+    using l1_unique = typename impl::l1_unique;
+    using l1_common = typename impl::l1_common;
+    using l2_common = typename impl::l2_common;
+    using l2_unique = typename impl::l2_unique;
+    using ResT = typename impl::result_row_type;
+    using ResL = typename impl::result_row_idxs;
+  };
+
+  template<typename Idxs, typename... Args>
+  auto make_join_map(const table<Args...> &t) {
+    using T = std::tuple<Args...>;
+    using Tab = table<Args...>;
     using ConstPtr = typename Tab::const_pointer;
     using ResTuple = mp_apply_idxs<T, Idxs>;
     using JoinMap = absl::flat_hash_map<ResTuple, std::vector<ConstPtr>>;
-    JoinMap jmap{};
+    JoinMap jmap;
     jmap.reserve(t.size());
     for (const auto &row : t)
       jmap[project_row<Idxs>(row)].emplace_back(&row);
     return jmap;
   }
 
-  template<bool hash_left, typename JoinInfo, typename Tab1, typename Tab2>
-  typename JoinInfo::result_tab_type table_join_dispatch(const Tab1 &tab1,
-                                                         const Tab2 &tab2) {
-    using JoinMapIdxs =
-      std::conditional_t<hash_left, typename JoinInfo::l1_common,
-                         typename JoinInfo::l2_common>;
-    using ProjectIdxs =
-      std::conditional_t<hash_left, typename JoinInfo::l2_common,
-                         typename JoinInfo::l1_common>;
-    auto jmap = make_join_map<JoinMapIdxs>(constexpr_if<hash_left>(tab1, tab2));
-    typename JoinInfo::result_tab_type res;
+  template<typename Idxs, typename... Args>
+  auto make_anti_join_set(const table<Args...> &t) {
+    using T = std::tuple<Args...>;
+    using ResTuple = mp_apply_idxs<T, Idxs>;
+    using AJoinSet = absl::flat_hash_set<ResTuple>;
+    AJoinSet ajset;
+    ajset.reserve(t.size());
+    for (const auto &row : t)
+      ajset.emplace(project_row<Idxs>(row));
+    return ajset;
+  }
+
+  template<bool hash_left, typename L1, typename L2, typename... Args1,
+           typename... Args2>
+  auto table_join_dispatch(const table<Args1...> &tab1,
+                           const table<Args2...> &tab2) {
+    using T1 = std::tuple<Args1...>;
+    using T2 = std::tuple<Args2...>;
+    using jinfo = join_info<L1, L2, T1, T2>;
+    using l1_unique = typename jinfo::l1_unique;
+    using l2_unique = typename jinfo::l2_unique;
+    using l1_common = typename jinfo::l1_common;
+    using l2_common = typename jinfo::l2_common;
+    using join_idxs = mp_list<l1_unique, l1_common, l2_unique>;
+    using join_map_idxs = std::conditional_t<hash_left, l1_common, l2_common>;
+    using project_idxs = std::conditional_t<hash_left, l2_common, l1_common>;
+    using res_tab_t = tab_t_of_row_t<typename jinfo::ResT>;
+
+    auto jmap =
+      make_join_map<join_map_idxs>(constexpr_if<hash_left>(tab1, tab2));
+    res_tab_t res;
     for (const auto &tup : constexpr_if<hash_left>(tab2, tab1)) {
-      auto proj = project_row<ProjectIdxs>(tup);
+      auto proj = project_row<project_idxs>(tup);
       auto it = jmap.find(proj);
       if (it != jmap.cend()) {
         for (auto ptr : it->second) {
           const auto &t1 = constexpr_if<hash_left>(*ptr, tup);
           const auto &t2 = constexpr_if<hash_left>(tup, *ptr);
-          res.emplace(
-            project_row_mult<typename JoinInfo::join_idxs>(t1, t1, t2));
+          res.emplace(project_row_mult<join_idxs>(t1, t1, t2));
         }
       }
     }
     return res;
   }
 
-  template<typename JoinInfo, typename Tab1, typename Tab2>
-  auto cartesian_product(const Tab1 &tab1, const Tab2 &tab2) {
-    typename JoinInfo::result_tab_type res;
-    using ProjectIdxs =
-      mp_list<typename JoinInfo::l1_unique, typename JoinInfo::l2_unique>;
+  template<typename L1, typename L2, typename... Args1, typename... Args2>
+  auto cartesian_product(const table<Args1...> &tab1,
+                         const table<Args2...> &tab2) {
+    using T1 = std::tuple<Args1...>;
+    using T2 = std::tuple<Args2...>;
+    using jinfo = join_info<L1, L2, T1, T2>;
+    typename jinfo::result_tab_type res;
+    using projection_idxs =
+      mp_list<typename jinfo::l1_unique, typename jinfo::l2_unique>;
+
     res.reserve(tab1.size() * tab2.size());
     for (const auto &t1 : tab1) {
       for (const auto &t2 : tab2) {
-        res.emplace(project_row_mult<ProjectIdxs>(t1, t2));
+        res.emplace(project_row_mult<projection_idxs>(t1, t2));
       }
     }
     return res;
   }
 
+  template<typename LIn, typename LOut>
+  using get_reorder_mask = mp_transform_q<mp_bind<mp_find, LIn, _1>, LOut>;
+
 }// namespace detail
 
-template<typename L1, typename L2, typename T1, typename T2>
-struct get_join_layout {
-  using impl = typename detail::get_join_layout_impl<L1, L2, T1, T2>;
-  using l1_unique = typename impl::l1_unique;
-  using l1_common = typename impl::l1_common;
-  using l2_common = typename impl::l2_common;
-  using l2_unique = typename impl::l2_unique;
-  using join_idxs = mp_list<l1_unique, l1_common, l2_unique>;
-  using result_tab_type =
-    mp_rename<mp_push_front<typename impl::result_row_type,
-                            typename impl::result_row_idxs>,
-              table>;
+template<typename LIn, typename LOut, typename T>
+struct reorder_info {
+  static_assert(mp_size<LIn>::value == mp_size<LOut>::value,
+                "layouts must have same size");
+  static_assert(
+    mp_all_of_q<detail::get_reorder_mask<LIn, LOut>,
+                mp_bind<mp_not, mp_bind<mp_less, _1, mp_size<LIn>>>>::value,
+    "layouts are not compatible");
+
+  using ResL = LOut;
+  using ResT = mp_apply_idxs<T, detail::get_reorder_mask<LIn, LOut>>;
 };
 
+template<typename LIn, typename LOut, typename... ArgsIn>
+auto reorder_table(const table<ArgsIn...> &tab) {
+  using T = std::tuple<ArgsIn...>;
+  using reorder_mask = detail::get_reorder_mask<LIn, LOut>;
+  using info = reorder_info<LIn, LOut, T>;
+  using res_tab_t = tab_t_of_row_t<typename info::ResT>;
+
+  res_tab_t res;
+  res.reserve(tab.size());
+  for (const auto &row : tab)
+    res.emplace(project_row<reorder_mask>(row));
+  return res;
+}
 
 template<typename L1, typename L2, typename T1, typename T2>
-typename get_join_layout<L1, L2, T1, T2>::result_tab_type
-table_join(const mp_rename<T1, table> &tab1, const mp_rename<T2, table> &tab2) {
-  using JoinInfo = get_join_layout<L1, L2, T1, T2>;
+struct join_result_info {
+  using ResL = typename detail::join_info<L1, L2, T1, T2>::ResL;
+  using ResT = typename detail::join_info<L1, L2, T1, T2>::ResT;
+};
+
+template<typename L1, typename L2, typename... Args1, typename... Args2>
+auto table_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+  using T1 = std::tuple<Args1...>;
+  using T2 = std::tuple<Args2...>;
+  using jinfo = detail::join_info<L1, L2, T1, T2>;
+  using res_tab_t =
+    tab_t_of_row_t<typename join_result_info<L1, L2, T1, T2>::ResT>;
+  static constexpr bool no_common_cols =
+    mp_empty<typename jinfo::l1_common>::value;
+
   if (tab1.empty() || tab2.empty())
-    return typename JoinInfo::result_tab_type{};
-  if constexpr (mp_empty<typename JoinInfo::l1_common>::value) {
-    return detail::cartesian_product<JoinInfo>(tab1, tab2);
+    return res_tab_t();
+  if constexpr (no_common_cols) {
+    return detail::cartesian_product<L1, L2>(tab1, tab2);
   } else {
     auto hash_left = tab1.size() < tab2.size();
     if (hash_left)
-      return detail::table_join_dispatch<true, JoinInfo>(tab1, tab2);
+      return detail::table_join_dispatch<true, L1, L2>(tab1, tab2);
     else
-      return detail::table_join_dispatch<false, JoinInfo>(tab1, tab2);
+      return detail::table_join_dispatch<false, L1, L2>(tab1, tab2);
   }
 }
+
+template<typename L1, typename L2, typename T1, typename T2>
+struct union_result_info {
+  using ResT = T1;
+  using ResL = L1;
+};
+
+template<typename L1, typename L2, typename... Args1, typename... Args2>
+auto table_union(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+  using T1 = std::tuple<Args1...>;
+  using T2 = std::tuple<Args2...>;
+  using jinfo = detail::join_info<L1, L2, T1, T2>;
+  using res_tab_t =
+    tab_t_of_row_t<typename union_result_info<L1, L2, T1, T2>::ResT>;
+
+  res_tab_t res;
+  res.reserve(tab1.size() + tab2.size());
+  if constexpr (std::is_same_v<L1, L2>) {
+    static_assert(std::is_same_v<T1, T2>, "layouts same but not row types");
+    res.insert(tab2.cbegin(), tab2.cend());
+  } else {
+    using reorder_mask = detail::get_reorder_mask<L2, L1>;
+    static_assert(std::is_same_v<mp_apply_idxs<T2, reorder_mask>, T1>,
+                  "internal error, reorder mask incorrect");
+    for (const auto &row : tab2)
+      res.emplace(project_row<reorder_mask>(row));
+  }
+  return res;
+}
+
+template<typename L1, typename L2, typename T1, typename T2>
+struct anti_join_info {
+  using ResL = L1;
+  using ResT = T1;
+};
+
+template<typename L1, typename L2, typename... Args1, typename... Args2>
+auto table_anti_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+  using T1 = std::tuple<Args1...>;
+  using T2 = std::tuple<Args2...>;
+  using res_tab_t = table<Args1...>;
+  using jinfo = detail::join_info<L1, L2, T1, T2>;
+  static_assert(mp_empty<typename jinfo::l2_unique>::value,
+                "not a valid antijoin");
+  using proj_mask1 = typename jinfo::l1_common;
+  using proj_mask2 = typename jinfo::l2_common;
+  auto jset = detail::make_anti_join_set<proj_mask2>(tab2);
+  res_tab_t res;
+  for (const auto &row : tab1) {
+    auto proj_r = project_row<proj_mask1>(row);
+    if (!jset.contains(proj_r))
+      res.emplace(row);
+  }
+  return res;
+}
+
 }// namespace table_util

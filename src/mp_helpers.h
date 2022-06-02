@@ -5,6 +5,15 @@
 
 using namespace boost::mp11;
 
+template<bool cond_v, typename Then, typename OrElse>
+decltype(auto) constexpr_if(Then &&then, OrElse &&or_else) {
+  if constexpr (cond_v) {
+    return std::forward<Then>(then);
+  } else {
+    return std::forward<OrElse>(or_else);
+  }
+}
+
 template<class>
 inline constexpr bool always_false_v = false;
 

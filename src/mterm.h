@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/mp11.hpp>
 #include <cstdint>
+#include <monitor_types.h>
 #include <mp_helpers.h>
 #include <string>
 #include <string_view>
@@ -20,6 +21,8 @@ struct tvar {
 
   template<typename L, typename T>
   static ResT<L, T> eval(const T &row) {
+    static_assert(var_idx<L>::value != mp_size<L>::value,
+                  "term variable not found");
     return std::get<var_idx<L>::value>(row);
   }
 };
@@ -29,16 +32,10 @@ struct tcst {
   using value_type = typename Cst::value_type;
 
   template<typename L, typename T>
-  using ResT = mp_if_c<std::is_same_v<value_type, std::string_view>,
-                       std::string, value_type>;
+  using ResT = clean_monitor_cst_ty<value_type>;
 
   template<typename L, typename T>
   static ResT<L, T> eval(const T &) {
-    static_assert(
-      std::disjunction_v<std::is_same<value_type, double>,
-                         std::is_same<value_type, std::int64_t>,
-                         std::is_same<value_type, std::string_view>>,
-      "unknown constant type");
     if constexpr (std::is_same_v<ResT<L, T>, std::string_view>)
       return std::string(Cst::value);
     else {
