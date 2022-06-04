@@ -6,7 +6,6 @@
 #include <string>
 #include <table.h>
 #include <vector>
-#include <monitor_types.h>
 
 using namespace boost::mp11;
 

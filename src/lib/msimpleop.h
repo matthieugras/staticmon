@@ -52,7 +52,7 @@ struct cst_eq;
 struct cst_less;
 struct cst_less_eq;
 
-template<typename IsNeg, typename CstTy, typename Term1, typename Term2>
+template<bool is_neg, typename CstTy, typename Term1, typename Term2>
 struct mandrel {
   template<typename L, typename T>
   struct result_info {
@@ -67,7 +67,6 @@ struct mandrel {
 
     static_assert(std::is_same_v<t1_res_t, t2_res_t>,
                   "terms in constraints must have same type");
-    constexpr bool is_neg = IsNeg::value;
     auto res1 = Term1::template eval<L>(row);
     auto res2 = Term2::template eval<L>(row);
     static_assert(std::is_same_v<decltype(res1), t1_res_t>,

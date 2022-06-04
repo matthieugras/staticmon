@@ -4,3 +4,5 @@ builddir_debug
 compile_commands.json
 .cache/clangd/index
 builddir
+src/input_formula/formula_csts.h
+src/input_formula/formula_in.h

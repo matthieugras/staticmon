@@ -1,9 +1,23 @@
 #pragma once
 #include <boost/mp11.hpp>
 #include <cstdint>
+#include <string_view>
 #include <tuple>
 
 using namespace boost::mp11;
+
+template<typename T>
+struct clean_monitor_cst_ty_impl {
+  using type =
+    mp_if<std::is_same<T, std::string_view>, std::string,
+          mp_if<std::is_same<T, double>, double,
+                mp_if<std::is_same<T, std::int64_t>, std::int64_t,
+                      mp_if<std::is_same<T, std::string>, std::string, void>>>>;
+  static_assert(!std::is_same_v<type, void>, "unknown cst type");
+};
+
+template<typename T>
+using clean_monitor_cst_ty = typename clean_monitor_cst_ty_impl<T>::type;
 
 template<bool cond_v, typename Then, typename OrElse>
 decltype(auto) constexpr_if(Then &&then, OrElse &&or_else) {
