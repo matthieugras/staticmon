@@ -3,9 +3,9 @@
 #include <boost/container/devector.hpp>
 #include <boost/mp11.hpp>
 #include <helpers/binary_buffer.h>
-#include <monitor_types.h>
-#include <mp_helpers.h>
 #include <minterval.h>
+#include <mp_helpers.h>
+#include <operator_types.h>
 #include <table.h>
 #include <vector>
 

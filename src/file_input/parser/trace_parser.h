@@ -8,7 +8,7 @@
 #include <lexy/action/scan.hpp>
 #include <lexy/callback.hpp>
 #include <lexy/dsl.hpp>
-#include <monitor_types.h>
+#include <operator_types.h>
 #include <optional>
 #include <string>
 #include <system_error>
@@ -19,6 +19,10 @@
 namespace parse {
 #define RULE static constexpr auto rule =
 #define VALUE static constexpr auto value =
+
+using parser_database = absl::flat_hash_map<pred_id_t, database_table>;
+
+database monitor_db_from_parser_db(parser_database &&db);
 
 namespace dsl = lexy::dsl;
 
@@ -40,7 +44,7 @@ private:
     VALUE lexy::as_string<std::string>;
   };
 
-  using arg_tup_ty = std::pair<pred_id_t, database_elem>;
+  using arg_tup_ty = std::pair<pred_id_t, database_table>;
 
   struct unknown_pred {
     static constexpr auto name = "unknown predicate";
@@ -183,31 +187,26 @@ private:
         return lexy::scan_failed;
       // TODO: only const
       std::string p_name(p_name_res.value());
-      auto it = state.pred_map.find(p_name);
-      if (it == state.sig.cend()) {
-        scanner.fatal_error(unknown_pred{}, scanner.begin(),
-                            scanner.position());
-        return lexy::scan_failed;
-      }
-      size_t n_args = it->second.size();
-      auto p_key = std::pair(std::move(p_name), n_args);
-      auto p_it = state.pred_map.find(p_key);
+      auto p_it = state.pred_map.find(p_name);
       if (p_it == state.pred_map.end()) {
         scanner.parse(dsl::p<discard_tup_list>);
         if (!scanner)
           return lexy::scan_failed;
         return std::nullopt;
       }
+      const auto &pinfo = p_it->second;
+      const auto &ptypes = pinfo.second;
+      std::size_t n_args = ptypes.size();
+      std::size_t p_id = pinfo.first;
       // Parse everything
-      auto p_id = p_it->second;
-      database_elem tup_list;
+      database_table tup_list;
       while (scanner.branch(
         dsl::peek_not(dsl::ascii::alpha_digit_underscore / dsl::semicolon))) {
         if (!scanner)
           return lexy::scan_failed;
         std::vector<event_data> tup;
         tup.reserve(n_args);
-        parse_tuple(scanner, tup, it->second);
+        parse_tuple(scanner, tup, ptypes);
         if (!scanner)
           return lexy::scan_failed;
         tup_list.emplace_back(std::move(tup));
@@ -221,7 +220,7 @@ private:
   struct db_parse {
     RULE dsl::list(dsl::peek(dsl::ascii::alpha_digit_underscore) >>
                    dsl::p<named_arg_tup_list>);
-    static constexpr auto fold_fn = [](database &db,
+    static constexpr auto fold_fn = [](parser_database &db,
                                        std::optional<arg_tup_ty> &&elem) {
       if (!elem)
         return;
@@ -234,15 +233,15 @@ private:
                           std::make_move_iterator(elem->second.end()));
     };
     VALUE
-    lexy::fold_inplace<database>(std::initializer_list<database::init_type>{},
-                                 fold_fn);
+    lexy::fold_inplace<parser_database>(
+      std::initializer_list<parser_database::init_type>{}, fold_fn);
   };
 
   struct ts_parse : lexy::token_production {
     RULE dsl::capture(dsl::digits<>);
-    VALUE lexy::callback<size_t>([](auto lexeme) -> size_t {
+    VALUE lexy::callback<std::size_t>([](auto lexeme) -> std::size_t {
       const auto *fst = lexeme.data(), *lst = fst + lexeme.size();
-      size_t ts;
+      std::size_t ts;
       auto [new_ptr, ec] = std::from_chars(fst, lst, ts);
       if (ec != std::errc() || new_ptr != lst)
         throw std::runtime_error("invalid integer");
@@ -257,9 +256,10 @@ private:
       dsl::opt(dsl::peek_not(dsl::semicolon) >> dsl::p<db_parse>) +
       dsl::semicolon + dsl::if_(dsl::ascii::newline) + dsl::eof;
     VALUE lexy::callback<timestamped_database>(
-      [](size_t &&ts, std::optional<database> &&db) -> timestamped_database {
+      [](std::size_t &&ts,
+         std::optional<parser_database> &&db) -> timestamped_database {
         if (db)
-          return std::make_pair(ts, std::move(*db));
+          return std::make_pair(ts, monitor_db_from_parser_db(std::move(*db)));
         else
           return std::make_pair(ts, database());
       });

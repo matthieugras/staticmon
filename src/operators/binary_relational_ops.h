@@ -4,8 +4,8 @@
 #include <cassert>
 #include <cstdint>
 #include <helpers/binary_buffer.h>
-#include <monitor_types.h>
 #include <iterator>
+#include <operator_types.h>
 #include <table.h>
 #include <type_traits>
 #include <utility>

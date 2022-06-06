@@ -1,8 +1,8 @@
 #pragma once
 #include <boost/mp11.hpp>
-#include <monitor_types.h>
 #include <mp_helpers.h>
 #include <mterm.h>
+#include <operator_types.h>
 #include <optional>
 #include <table.h>
 #include <tuple>

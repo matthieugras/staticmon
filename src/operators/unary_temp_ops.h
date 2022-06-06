@@ -1,9 +1,9 @@
 #pragma once
 #include <boost/container/devector.hpp>
 #include <boost/mp11.hpp>
-#include <monitor_types.h>
-#include <mp_helpers.h>
 #include <minterval.h>
+#include <mp_helpers.h>
+#include <operator_types.h>
 #include <optional>
 #include <table.h>
 #include <tuple>

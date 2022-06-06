@@ -1,8 +1,8 @@
 #pragma once
 #include <boost/mp11.hpp>
 #include <cstdint>
-#include <monitor_types.h>
 #include <mp_helpers.h>
+#include <operator_types.h>
 #include <string>
 #include <string_view>
 

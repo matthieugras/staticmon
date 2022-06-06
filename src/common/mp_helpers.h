@@ -3,8 +3,20 @@
 #include <cstdint>
 #include <string_view>
 #include <tuple>
+#include <vector>
 
 using namespace boost::mp11;
+
+template<typename... T>
+using remove_cv_refs_t = mp_transform<std::remove_cvref_t, mp_list<T...>>;
+
+template<typename T, typename... Args>
+std::vector<std::remove_cvref_t<T>> make_vector(T &&fst_arg, Args &&...args) {
+  std::vector<std::remove_cvref_t<T>> res;
+  res.emplace_back(std::forward<T>(fst_arg));
+  (((void) res.emplace_back(std::forward<Args>(args))), ...);
+  return res;
+}
 
 template<typename T>
 struct clean_monitor_cst_ty_impl {

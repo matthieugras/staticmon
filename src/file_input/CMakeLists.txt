@@ -1,13 +1,6 @@
-set(PARSER_SOURCES trace_parser.cpp)
-set(PARSER_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
-add_library(parser STATIC ${PARSER_SOURCES})
-target_include_directories(parser PUBLIC ${PARSER_INCLUDES})
-target_link_libraries(
-  parser
-  common
-  formula
-  CONAN_PKG::fmt
-  CONAN_PKG::boost
-  CONAN_PKG::abseil
-  foonathan::lexy
-)
+add_subdirectory(parser)
+
+set(FILE_DRIVER_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+add_library(file_driver INTERFACE)
+target_include_directories(file_driver INTERFACE ${FILE_DRIVER_INCLUDES})
+target_link_libraries(file_driver INTERFACE formula monitor parser)

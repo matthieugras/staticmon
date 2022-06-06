@@ -3,8 +3,8 @@
 #include <absl/container/flat_hash_set.h>
 #include <boost/mp11.hpp>
 #include <fmt/format.h>
-#include <mp_helpers.h>
 #include <iostream>
+#include <mp_helpers.h>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -122,29 +122,27 @@ namespace detail {
     }
     return res;
   }
-
-  template<typename LIn, typename LOut>
-  using get_reorder_mask = mp_transform_q<mp_bind<mp_find, LIn, _1>, LOut>;
-
 }// namespace detail
+
+template<typename LIn, typename LOut>
+using get_reorder_mask = mp_transform_q<mp_bind<mp_find, LIn, _1>, LOut>;
 
 template<typename LIn, typename LOut, typename T>
 struct reorder_info {
   static_assert(mp_size<LIn>::value == mp_size<LOut>::value,
                 "layouts must have same size");
-  static_assert(
-    mp_all_of_q<detail::get_reorder_mask<LIn, LOut>,
-                mp_bind<mp_not, mp_bind<mp_less, _1, mp_size<LIn>>>>::value,
-    "layouts are not compatible");
+  static_assert(mp_all_of_q<get_reorder_mask<LIn, LOut>,
+                            mp_bind<mp_less, _1, mp_size<LIn>>>::value,
+                "layouts are not compatible");
 
   using ResL = LOut;
-  using ResT = mp_apply_idxs<T, detail::get_reorder_mask<LIn, LOut>>;
+  using ResT = mp_apply_idxs<T, get_reorder_mask<LIn, LOut>>;
 };
 
 template<typename LIn, typename LOut, typename... ArgsIn>
 auto reorder_table(const table<ArgsIn...> &tab) {
   using T = std::tuple<ArgsIn...>;
-  using reorder_mask = detail::get_reorder_mask<LIn, LOut>;
+  using reorder_mask = get_reorder_mask<LIn, LOut>;
   using info = reorder_info<LIn, LOut, T>;
   using res_tab_t = tab_t_of_row_t<typename info::ResT>;
 
@@ -213,7 +211,7 @@ auto table_union(const table<Args1...> &tab1, const table<Args2...> &tab2) {
     static_assert(std::is_same_v<T1, T2>, "layouts same but not row types");
     res.insert(tab2.cbegin(), tab2.cend());
   } else {
-    using reorder_mask = detail::get_reorder_mask<L2, L1>;
+    using reorder_mask = get_reorder_mask<L2, L1>;
     static_assert(std::is_same_v<mp_apply_idxs<T2, reorder_mask>, T1>,
                   "internal error, reorder mask incorrect");
     for (const auto &row : tab2)
