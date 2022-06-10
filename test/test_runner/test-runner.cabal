@@ -1,0 +1,30 @@
+cabal-version:      3.0
+name:               test-runner
+version:            0.1.0.0
+synopsis:           Test runner for staticmon
+
+license:            MIT
+license-file:       LICENSE
+author:             Matthieu Gras
+maintainer:         grasm@student.ethz.ch
+
+category:           Testing
+extra-source-files: CHANGELOG.md
+
+
+executable test-runner
+    main-is:          Main.hs
+    build-depends:
+      base ^>=4.16.1.0,
+      shelly >= 1.10.0 && < 1.10.1,
+      fmt ^>= 0.6.3.0,
+      optparse-applicative ^>= 0.17.0.0,
+      text >= 2.0 && < 2.0.1,
+      terminal-progress-bar >= 0.4.1 && < 0.4.2,
+    hs-source-dirs:   app
+    default-language: GHC2021
+    default-extensions:
+      LambdaCase
+      RecordWildCards
+      OverloadedStrings
+      ExtendedDefaultRules

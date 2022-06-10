@@ -6,3 +6,4 @@ compile_commands.json
 builddir
 src/input_formula/formula_csts.h
 src/input_formula/formula_in.h
+test/test_runner/dist-newstyle
