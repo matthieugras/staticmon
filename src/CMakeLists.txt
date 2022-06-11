@@ -8,7 +8,7 @@ endif()
 
 set(STATICMON_SOURCES staticmon.cpp)
 add_executable(staticmon ${STATICMON_SOURCES})
-target_link_libraries(staticmon PRIVATE formula CONAN_PKG::fmt CONAN_PKG::abseil)
+target_link_libraries(staticmon PRIVATE CONAN_PKG::fmt CONAN_PKG::abseil)
 if(ENABLE_FILE_INPUT)
   target_link_libraries(staticmon PRIVATE file_driver)
 endif()

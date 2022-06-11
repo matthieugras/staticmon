@@ -6,7 +6,7 @@
 #include <monitor_driver.h>
 #include <optional>
 #include <string>
-#include <trace_parser.h>
+#include <parser/trace_parser.h>
 #include <util.h>
 #include <verdict_printer.h>
 
