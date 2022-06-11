@@ -136,20 +136,6 @@ struct reorder_info {
   using ResT = mp_apply_idxs<T, get_reorder_mask<LIn, LOut>>;
 };
 
-// template<typename LIn, typename LOut, typename... ArgsIn>
-// auto reorder_table(const table<ArgsIn...> &tab) {
-//   using T = std::tuple<ArgsIn...>;
-//   using reorder_mask = get_reorder_mask<LIn, LOut>;
-//   using info = reorder_info<LIn, LOut, T>;
-//   using res_tab_t = tab_t_of_row_t<typename info::ResT>;
-//
-//   res_tab_t res;
-//   res.reserve(tab.size());
-//   for (const auto &row : tab)
-//     res.emplace(project_row<reorder_mask>(row));
-//   return res;
-// }
-
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info {
   using impl = detail::join_info_impl<L1, L2, T1, T2>;
@@ -161,6 +147,25 @@ struct join_info {
 };
 
 
+template<typename L2, typename T2>
+struct join_info<mp_list<>, L2, std::tuple<>, T2> {
+  using l1_common = mp_list<>;
+  using l2_common = mp_list<>;
+  using l2_unique = mp_iota<mp_size<L2>>;
+  using ResT = T2;
+  using ResL = L2;
+};
+
+template<typename L1, typename T1>
+struct join_info<L1, mp_list<>, T1, std::tuple<>> {
+  using l1_common = mp_list<>;
+  using l2_common = mp_list<>;
+  using l2_unique = mp_list<>;
+  using ResT = T1;
+  using ResL = L1;
+};
+
+
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_result_info {
   using ResL = typename join_info<L1, L2, T1, T2>::ResL;
@@ -168,7 +173,7 @@ struct join_result_info {
 };
 
 template<typename L1, typename L2, typename... Args1, typename... Args2>
-auto table_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+auto table_join(table<Args1...> &tab1, table<Args2...> &tab2) {
   using T1 = std::tuple<Args1...>;
   using T2 = std::tuple<Args2...>;
   using jinfo = join_info<L1, L2, T1, T2>;
@@ -176,10 +181,16 @@ auto table_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
     tab_t_of_row_t<typename join_result_info<L1, L2, T1, T2>::ResT>;
   static constexpr bool no_common_cols =
     mp_empty<typename jinfo::l1_common>::value;
+  static constexpr bool l_no_cols = sizeof...(Args1) == 0;
+  static constexpr bool r_no_cols = sizeof...(Args2) == 0;
 
   if (tab1.empty() || tab2.empty())
     return res_tab_t();
-  if constexpr (no_common_cols) {
+  if constexpr (l_no_cols) {
+    return std::move(tab2);
+  } else if constexpr (r_no_cols) {
+    return std::move(tab1);
+  } else if constexpr (no_common_cols) {
     return detail::cartesian_product<L1, L2>(tab1, tab2);
   } else {
     auto hash_left = tab1.size() < tab2.size();
