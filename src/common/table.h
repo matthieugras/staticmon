@@ -9,6 +9,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <iterator>
 #include <vector>
 
 namespace table_util {
@@ -199,25 +200,22 @@ struct union_result_info {
 };
 
 template<typename L1, typename L2, typename... Args1, typename... Args2>
-auto table_union(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+auto table_union(table<Args1...> &&tab1, table<Args2...> &tab2) {
   using T1 = std::tuple<Args1...>;
   using T2 = std::tuple<Args2...>;
-  using res_tab_t =
-    tab_t_of_row_t<typename union_result_info<L1, L2, T1, T2>::ResT>;
 
-  res_tab_t res;
-  res.reserve(tab1.size() + tab2.size());
+  tab1.reserve(tab1.size() + tab2.size());
   if constexpr (std::is_same_v<L1, L2>) {
     static_assert(std::is_same_v<T1, T2>, "layouts same but not row types");
-    res.insert(tab2.cbegin(), tab2.cend());
+    tab1.move(tab2);
   } else {
     using reorder_mask = get_reorder_mask<L2, L1>;
     static_assert(std::is_same_v<mp_apply_idxs<T2, reorder_mask>, T1>,
                   "internal error, reorder mask incorrect");
     for (const auto &row : tab2)
-      res.emplace(project_row<reorder_mask>(row));
+      tab1.emplace(project_row<reorder_mask>(row));
   }
-  return res;
+  return std::move(tab1);
 }
 
 template<typename L1, typename L2, typename T1, typename T2>

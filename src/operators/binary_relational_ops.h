@@ -3,6 +3,8 @@
 #include <boost/mp11.hpp>
 #include <cassert>
 #include <cstdint>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <helpers/binary_buffer.h>
 #include <iterator>
 #include <operator_types.h>
@@ -56,23 +58,23 @@ struct bin_rel_op {
           auto joined = table_util::table_join<L1, L2>(tab1, tab2);
           static_assert(std::is_same_v<decltype(joined), res_tab_t>,
                         "unexpected join return type");
-          return table_util::table_join<L1, L2>(tab1, tab2);
+          return joined;
         });
     } else if constexpr (std::is_same_v<Tag, or_tag>) {
       return buf_.update_and_reduce(
-        std::move(rec_res1), std::move(rec_res2),
-        [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
-          auto unioned = table_util::table_union<L1, L2>(tab1, tab2);
+        rec_res1, rec_res2, [](rec_tab1_t &tab1, rec_tab2_t &tab2) {
+          auto unioned = table_util::table_union<L1, L2>(std::move(tab1), tab2);
           static_assert(std::is_same_v<decltype(unioned), res_tab_t>,
                         "unexpected union return type");
+          return unioned;
         });
     } else if constexpr (std::is_same_v<Tag, and_not_tag>) {
       return buf_.update_and_reduce(
-        std::move(rec_res1), std::move(rec_res2),
-        [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
+        rec_res1, rec_res2, [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
           auto ajoined = table_util::table_anti_join<L1, L2>(tab1, tab2);
           static_assert(std::is_same_v<decltype(ajoined), res_tab_t>,
                         "unexpected antijoin return type");
+          return ajoined;
         });
     } else {
       static_assert(always_false_v<Tag>, "cannot happen");

@@ -245,7 +245,7 @@ struct msince {
     static_assert(std::is_same_v<decltype(rec_res2), std::vector<rec_tab2_t>>,
                   "unexpected table type");
     bin_buf_.update_and_reduce(
-      std::move(rec_res1), std::move(rec_res2),
+      rec_res1, rec_res2,
       [this](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
         assert(!ts_buf_.empty());
         size_t new_ts = ts_buf_.front();

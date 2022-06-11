@@ -1,7 +1,7 @@
 #pragma once
+#include <boost/container/devector.hpp>
 #include <type_traits>
 #include <vector>
-#include <boost/container/devector.hpp>
 
 template<typename T1, typename T2>
 class bin_op_buffer {
