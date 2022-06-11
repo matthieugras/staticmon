@@ -131,7 +131,7 @@ runTest Flags {..} pg i =
           header_dir = toTextIgnore $ f_mon_path </> "src" </> "input_formula"
           exe_file = build_dir </> "bin" </> "staticmon"
        in do
-            ffile <- absPath "formula.mfotl"
+            ffile <- absPath "fo"
             sfile <- absPath "sig"
             lfile <- absPath "log"
             let monp_opts =

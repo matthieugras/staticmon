@@ -4,12 +4,12 @@
 #include <boost/mp11.hpp>
 #include <fmt/format.h>
 #include <iostream>
+#include <iterator>
 #include <mp_helpers.h>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <iterator>
 #include <vector>
 
 namespace table_util {
@@ -44,8 +44,8 @@ namespace detail {
     //   mp_set_difference<mp_iota<mp_size<L1>>, mp_at_c<unzipped_common, 0>>;
     using l1_common = mp_at_c<unzipped_common, 0>;
     using l2_common = mp_at_c<unzipped_common, 1>;
-    using result_row_type = mp_append<L1, mp_apply_idxs<L2, l2_unique>>;
-    using result_row_idxs = mp_append<T1, mp_apply_idxs<T2, l2_unique>>;
+    using result_row_idxs = mp_append<L1, mp_apply_idxs<L2, l2_unique>>;
+    using result_row_type = mp_append<T1, mp_apply_idxs<T2, l2_unique>>;
   };
 
   template<typename Idxs, typename... Args>
@@ -109,14 +109,10 @@ namespace detail {
   template<typename L1, typename L2, typename... Args1, typename... Args2>
   auto cartesian_product(const table<Args1...> &tab1,
                          const table<Args2...> &tab2) {
-    using T1 = std::tuple<Args1...>;
-    using T2 = std::tuple<Args2...>;
-    using jinfo = join_info<L1, L2, T1, T2>;
-    typename jinfo::result_tab_type res;
-    using projection_idxs =
-      mp_append<mp_iota<mp_size<L1>>, typename jinfo::l2_unique>;
+    using res_tab_t = table<Args1..., Args2...>;
+    res_tab_t res;
+    using projection_idxs = mp_list<mp_iota<mp_size<L1>>, mp_iota<mp_size<L2>>>;
 
-    res.reserve(tab1.size() * tab2.size());
     for (const auto &t1 : tab1) {
       for (const auto &t2 : tab2)
         res.emplace(project_row_mult<projection_idxs>(t1, t2));
@@ -140,19 +136,20 @@ struct reorder_info {
   using ResT = mp_apply_idxs<T, get_reorder_mask<LIn, LOut>>;
 };
 
-template<typename LIn, typename LOut, typename... ArgsIn>
-auto reorder_table(const table<ArgsIn...> &tab) {
-  using T = std::tuple<ArgsIn...>;
-  using reorder_mask = get_reorder_mask<LIn, LOut>;
-  using info = reorder_info<LIn, LOut, T>;
-  using res_tab_t = tab_t_of_row_t<typename info::ResT>;
+// template<typename LIn, typename LOut, typename... ArgsIn>
+// auto reorder_table(const table<ArgsIn...> &tab) {
+//   using T = std::tuple<ArgsIn...>;
+//   using reorder_mask = get_reorder_mask<LIn, LOut>;
+//   using info = reorder_info<LIn, LOut, T>;
+//   using res_tab_t = tab_t_of_row_t<typename info::ResT>;
+//
+//   res_tab_t res;
+//   res.reserve(tab.size());
+//   for (const auto &row : tab)
+//     res.emplace(project_row<reorder_mask>(row));
+//   return res;
+// }
 
-  res_tab_t res;
-  res.reserve(tab.size());
-  for (const auto &row : tab)
-    res.emplace(project_row<reorder_mask>(row));
-  return res;
-}
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info {
   using impl = detail::join_info_impl<L1, L2, T1, T2>;

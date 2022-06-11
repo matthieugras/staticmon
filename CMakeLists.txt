@@ -10,6 +10,7 @@ project(
 # option(USE_JEMALLOC "Use jemalloc" OFF)
 option(ENABLE_SANITIZERS "Enable ASAN and UBSAN" OFF)
 option(ENABLE_FILE_INPUT "Enable reading traces from files" ON)
+# option(ENABLE_TRACE_TIME "Enable compile time tracing" ON)
 # option(ENABLE_SOCK_INTF "Enable socket interface" ON) set_property(GLOBAL
 # PROPERTY GLOBAL_DEPENDS_DEBUG_MODE 1)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -40,6 +41,11 @@ if(ENABLE_SANITIZERS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined")
 endif()
+
+# if(ENABLE_TRACE_TIME)
+#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
+#   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
+# endif()
 
 set(CMAKE_EXE_LINKER_FLAGS
     "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")

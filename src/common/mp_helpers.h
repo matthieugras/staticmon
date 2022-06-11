@@ -119,12 +119,19 @@ auto project_row_mult_helper(mp_list<InnerIdx...>, mp_list<OuterIdx...>,
 
 template<typename Idxs, typename... Rows>
 auto project_row_mult(Rows &&...row) {
+  static_assert(mp_size<Idxs>::value == sizeof...(Rows),
+                "must have as many lists of idxs as rows");
   using idx_pairs = compute_projection_idxs<Idxs>;
   return project_row_mult_helper(mp_first<idx_pairs>{}, mp_second<idx_pairs>{},
                                  std::forward_as_tuple(row...));
 }
 
+template<std::size_t... idxs, typename Row>
+auto project_row_helper(Row &&row, mp_list<mp_size_t<idxs>...>) {
+  return std::tuple(std::get<idxs>(std::forward<Row>(row))...);
+}
+
 template<typename Idxs, typename Row>
 auto project_row(Row &&row) {
-  return project_row_mult<mp_list<Idxs>>(row);
+  return project_row_helper(std::forward<Row>(row), Idxs{});
 }

@@ -53,8 +53,7 @@ struct bin_rel_op {
                   "left subformula has unexpected type");
     if constexpr (std::is_same_v<Tag, and_tag>) {
       return buf_.update_and_reduce(
-        std::move(rec_res1), std::move(rec_res2),
-        [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
+        rec_res1, rec_res2, [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
           auto joined = table_util::table_join<L1, L2>(tab1, tab2);
           static_assert(std::is_same_v<decltype(joined), res_tab_t>,
                         "unexpected join return type");
