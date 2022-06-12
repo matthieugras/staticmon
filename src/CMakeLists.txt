@@ -3,5 +3,18 @@ set(STATICMON_SOURCES staticmon.cpp)
 add_executable(staticmon ${STATICMON_SOURCES})
 target_include_directories(staticmon PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                              ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(staticmon PRIVATE CONAN_PKG::fmt CONAN_PKG::abseil
-                                        foonathan::lexy)
+target_link_libraries(staticmon PRIVATE CONAN_PKG::boost CONAN_PKG::fmt
+                                        CONAN_PKG::abseil foonathan::lexy)
+target_compile_options(staticmon PRIVATE -Wall -Wextra -Wconversion
+                                         -Wsign-conversion)
+if(ENABLE_SANITIZERS AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+  add_compile_options(-fsanitize=address,undefined)
+endif()
+
+if(ENABLE_TRACE_TIME)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(staticmon PRIVATE -ftime-trace)
+  else()
+    message(FATAL_ERROR "tracing only works with Clang")
+  endif()
+endif()

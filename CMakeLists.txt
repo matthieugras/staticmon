@@ -10,7 +10,7 @@ project(
 # option(USE_JEMALLOC "Use jemalloc" OFF)
 option(ENABLE_SANITIZERS "Enable ASAN and UBSAN" OFF)
 option(ENABLE_FILE_INPUT "Enable reading traces from files" ON)
-option(ENABLE_TRACE_TIME "Enable compile time tracing" ON)
+option(ENABLE_TRACE_TIME "Enable compile time tracing" OFF)
 # option(ENABLE_SOCK_INTF "Enable socket interface" ON) set_property(GLOBAL
 # PROPERTY GLOBAL_DEPENDS_DEBUG_MODE 1)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -21,37 +21,41 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup(TARGETS)
 
 string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO
                "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
 string(REPLACE "-O2" "-O3" CMAKE_C_FLAGS_RELWITHDEBINFO
                "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-string(APPEND CMAKE_CXX_FLAGS_DEBUG " -O2")
-string(APPEND CMAKE_C_FLAGS_DEBUG " -O2")
 
-set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wsign-conversion -Wno-unused-command-line-argument"
-)
 check_ipo_supported(LANGUAGES C CXX)
 
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+  add_compile_definitions(GLIBCXX_DEBUG=1)
+  add_compile_options(-O2)
+endif()
+
+if((CMAKE_BUILD_TYPE MATCHES RELEASE) OR (CMAKE_BUILD_TYPE MATCHES
+                                          RELWITHDEBINFO))
+  add_compile_options(-flto=full -march=native)
+endif()
+
+find_program(TEST_LLD ld.lld)
+if(TEST_LLD AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+  add_link_options(-fuse-ld=lld)
+endif()
 
 if(ENABLE_SANITIZERS)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined")
+  find_library(ASAN asan)
+  find_library(UBSAN ubsan)
+  link_libraries(${ASAN} ${UBSAN})
+  add_compile_options(-fsanitize=address,undefined)
 endif()
 
-if(ENABLE_TRACE_TIME)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
-endif()
-
-set(CMAKE_EXE_LINKER_FLAGS
-    "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
-set(CMAKE_SHARED_LINKER_FLAGS
-    "${CMAKE_SHARED_LINKER_FLAGS} -static-libgcc -static-libstdc++")
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+add_link_options(-static-libstdc++)
 
 if(ENABLE_FILE_INPUT)
   include(cmake/lexy.cmake)
