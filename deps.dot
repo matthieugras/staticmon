@@ -1,7 +1,0 @@
-digraph {
-file_driver -> {formula monitor parser}
-formula -> {operators common}
-monitor -> {common operators formula}
-operators -> {common}
-staticmon -> {file_driver socket_driver}
-}

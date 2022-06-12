@@ -5,7 +5,7 @@
 #include <absl/strings/string_view.h>
 #include <config.h>
 #include <memory>
-#include <monitor_driver.h>
+#include <staticmon/monitor/monitor_driver.h>
 #include <stdexcept>
 #include <string>
 
@@ -19,7 +19,7 @@ ABSL_FLAG(std::string, socket_path, "cppmon_uds",
 #endif
 
 #ifdef ENABLE_FILE_INPUT
-#include <file_monitor_driver.h>
+#include <staticmon/file_input/file_monitor_driver.h>
 ABSL_FLAG(std::string, log, "log", "path to log in monpoly format");
 ABSL_FLAG(std::string, vpath, "", "output file of the monitor's verdicts");
 #endif
