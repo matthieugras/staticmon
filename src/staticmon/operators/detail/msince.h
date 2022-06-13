@@ -50,7 +50,7 @@ template<typename Interval, typename T2, typename SharedBase>
 requires(!Interval::is_infinite) struct unbounded_interval_helper<Interval, T2,
                                                                   SharedBase> {
   using table_buf_t = boost::container::devector<
-    std::pair<size_t, table_util::tab_t_of_row_t<T2>>>;
+    std::pair<std::size_t, table_util::tab_t_of_row_t<T2>>>;
   using tuple_buf_t =
     absl::flat_hash_map<mp_rename<T2, tuple_buf>, std::size_t>;
 
@@ -64,7 +64,7 @@ requires(!Interval::is_infinite) struct unbounded_interval_helper<Interval, T2,
     }
   }
 
-  void drop_too_old(size_t ts) {
+  void drop_too_old(std::size_t ts) {
     auto &data_prev = static_cast<SharedBase *>(this)->data_prev;
     auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     for (; !data_in.empty(); data_in.pop_front()) {
@@ -102,7 +102,7 @@ struct shared_base
                                 shared_base<AggBase, Interval, T2>> {
 
   using table_buf_t = boost::container::devector<
-    std::pair<size_t, table_util::tab_t_of_row_t<T2>>>;
+    std::pair<std::size_t, table_util::tab_t_of_row_t<T2>>>;
   using tuple_buf_t =
     absl::flat_hash_map<mp_rename<T2, tuple_buf>, std::size_t>;
 
