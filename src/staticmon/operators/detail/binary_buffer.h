@@ -1,5 +1,7 @@
 #pragma once
+#include <algorithm>
 #include <boost/container/devector.hpp>
+#include <staticmon/operators/detail/operator_types.h>
 #include <type_traits>
 #include <vector>
 

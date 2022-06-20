@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/mp11.hpp>
+#include <cstdint>
 #include <staticmon/common/mp_helpers.h>
 
 using namespace boost::mp11;
@@ -11,6 +12,8 @@ struct lower_bound_ops {
   static constexpr bool geq_lower(std::size_t p) { return p >= lower_bound; }
 
   static constexpr bool lt_lower(std::size_t n) { return n < lower_bound; }
+
+  static constexpr std::size_t lower() { return lower_bound; }
 };
 
 template<typename LBound, typename UBound>
