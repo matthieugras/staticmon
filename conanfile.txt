@@ -2,6 +2,7 @@
 boost/1.78.0
 abseil/20211102.0
 fmt/8.1.1
+jemalloc/5.2.1
 
 [generators]
 cmake

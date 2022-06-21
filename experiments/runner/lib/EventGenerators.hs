@@ -14,7 +14,7 @@ getGenerator genid =
 simplePred1Gen :: FilePath -> IO ()
 simplePred1Gen fp = withPrintState fp $ do
   forM_
-    [0 .. 100000]
+    [0 .. 1000000]
     ( \i -> do
         newDb i
         outputNewEvent "A" [Intgr 5, Intgr 10]

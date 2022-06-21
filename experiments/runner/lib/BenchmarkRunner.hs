@@ -24,7 +24,7 @@ import Data.Text.Lazy.IO qualified as TL
 import Data.Vector qualified as V
 import EventGenerators (getGenerator)
 import Flags (Flags (..), NestedFlags (..))
-import Monitors (Monitor (..), monitors)
+import Monitors (monitorName, monitors, prepareAndBenchmarkMonitor)
 import Shelly.Helpers (FlagSh (..), shellyWithFlags)
 import Shelly.Lifted
 import System.IO (FilePath)
@@ -66,22 +66,22 @@ data BenchConfig = BenchConfig
 
 collectConfigs :: FlagSh [BenchConfig]
 collectConfigs =
-  (ls =<< pwd)
+  pwd
+    >>= ls
     >>= (filterM test_d)
     <&> (zip [0 :: Int ..])
     >>= traverse (uncurry (flip chdir . readConfig))
   where
     readConfig bench_id = do
       bench_path <- pwd
-      ( A.eitherDecodeFileStrict @JsonBenchConfig (bench_path </> "config.json")
-          & liftIO
-          >>= ( \case
-                  Left (err) -> fail err
-                  Right (JsonBenchConfig {..}) ->
-                    let bench_gen = getGenerator jb_gen
-                     in return BenchConfig {bench_disp_name = jb_disp_name, ..}
-              )
-        )
+      A.eitherDecodeFileStrict @JsonBenchConfig (bench_path </> "config.json")
+        & liftIO
+        >>= ( \case
+                Left (err) -> fail err
+                Right (JsonBenchConfig {..}) ->
+                  let bench_gen = getGenerator jb_gen
+                   in return BenchConfig {bench_disp_name = jb_disp_name, ..}
+            )
 
 runMonitorBenchmarks ::
   BenchConfig ->
@@ -89,28 +89,26 @@ runMonitorBenchmarks ::
   FlagSh (Csv.NamedBuilder MeasurementRow)
 runMonitorBenchmarks BenchConfig {..} builder = do
   reps <- RD.ask <&> f_nes_flags <&> bf_reps
-  withTmpDir
-    ( \d ->
-        let log_f = d </> "log"
-         in (liftIO $ bench_gen log_f)
-              >> foldrM
-                ( \(m, i) builder ->
-                    let s = bench_path </> "sig"
-                        f = bench_path </> "fo"
-                     in runSingleBenchmark s f log_f m i builder
-                )
-                builder
-                (monitorItPairs reps)
-    )
+  withTmpDir $ \d ->
+    let log_f = d </> "log"
+     in (liftIO $ bench_gen log_f)
+          -- >> (cp log_f "/home/grasm/logfile")
+          >> foldrM
+            ( \(m, i) builder ->
+                let s = bench_path </> "sig"
+                    f = bench_path </> "fo"
+                 in runSingleBenchmark s f log_f m i builder
+            )
+            builder
+            (monitorItPairs reps)
   where
-    runSingleBenchmark s f log_f Monitor {..} i builder = do
-      st <- prepareMonitor s f
-      t <- runBenchmark st s f log_f
+    runSingleBenchmark s f log_f m i builder = do
+      t <- prepareAndBenchmarkMonitor m (s, f, log_f)
       return $
         builder
           <> Csv.encodeNamedRecord
             ( MeasurementRow
-                { out_monitor = monitorName,
+                { out_monitor = monitorName m,
                   out_bench_name = bench_disp_name,
                   out_rep = i,
                   out_time = t

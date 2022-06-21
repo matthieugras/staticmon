@@ -12,7 +12,7 @@ import Data.Text qualified as T
 import Data.Text.Read qualified as R
 import Flags (Bnd (..), Flags (..), Interval, NestedFlags (..))
 import Fmt ((+|), (|+), (|++|))
-import Monitors (Monitor (..), monpoly, prepareAndRunMonitor, staticmon, verimon)
+import Monitors (monpoly, prepareAndRunMonitor, staticmon, verimon)
 import Shelly.Helpers (FlagSh (..), shellyWithFlags)
 import Shelly.Lifted
 import System.ProgressBar qualified as PG
@@ -22,28 +22,15 @@ default (T.Text)
 type BndInterval = (Int, Int)
 
 runTest pg i =
-  chdir
-    (show i)
-    ( do
-        args <- (,,) <$> (absPath "sig") <*> (absPath "fo") <*> (absPath "log")
-        verifiyOutputs args
-        liftIO $ PG.incProgress pg 1
-    )
+  chdir (show i) $ do
+    args <- (,,) <$> (absPath "sig") <*> (absPath "fo") <*> (absPath "log")
+    verifiyOutputs args
+    liftIO $ PG.incProgress pg 1
   where
     verifiyOutputs args =
-      prepareAndRunMonitor
-        verimon
-        args
-        ( \monp_out ->
-            prepareAndRunMonitor
-              staticmon
-              args
-              ( \smon_out ->
-                  run_
-                    "diff"
-                    [toTextIgnore smon_out, toTextIgnore monp_out]
-              )
-        )
+      prepareAndRunMonitor verimon args $ \monp_out ->
+        prepareAndRunMonitor staticmon args $ \smon_out ->
+          run_ "diff" [toTextIgnore smon_out, toTextIgnore monp_out]
 
 runIntervalTest pg nfolders (lb, ub) =
   mapM_ (runTest pg) [lb .. ub]
@@ -52,7 +39,8 @@ runTests' = do
   monpath <- f_mon_path <$> RD.ask
   cd (monpath </> "experiments" </> "tests")
   nfolders <- countFolders
-  when (nfolders == 0) (errorExit "no test cases")
+  when (nfolders == 0) $
+    errorExit "no test cases"
   ranges <- RD.ask <&> f_nes_flags <&> tf_ranges
   let intvs = map (translateInterval nfolders) ranges
   if intervalsOverlap intvs

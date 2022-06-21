@@ -7,7 +7,7 @@ project(
   DESCRIPTION "C++ monitor"
   LANGUAGES C CXX)
 
-# option(USE_JEMALLOC "Use jemalloc" OFF)
+option(USE_JEMALLOC "Use jemalloc" OFF)
 option(ENABLE_SANITIZERS "Enable ASAN and UBSAN" OFF)
 option(ENABLE_FILE_INPUT "Enable reading traces from files" ON)
 option(ENABLE_TRACE_TIME "Enable compile time tracing" OFF)

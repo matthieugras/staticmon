@@ -63,7 +63,7 @@ compiler=${CC}
 compiler.libcxx=libstdc++11
 compiler.cppstd=20
 compiler.version=${COMPILER_VERSION}
-build_type=Debug
+build_type=${PROFILE_MODE}
 [options]
 [build_requires]
 [env]
