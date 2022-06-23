@@ -1,5 +1,6 @@
 module Flags (Interval, Bnd (..), Flags (..), NestedFlags (..), parseFlags) where
 
+import Data.Int (Int64)
 import Data.Text qualified as T
 import Data.Text.Read qualified as R
 import Options.Applicative
@@ -15,6 +16,13 @@ data NestedFlags
   | BenchFlags
       { bf_reps :: Int,
         bf_out :: FilePath
+      }
+  | RandomTestFlags
+      { rt_ub :: Int64,
+        rt_events_per_db :: Int,
+        rt_db_per_ts :: Int,
+        rt_num_ts :: Int,
+        rt_reps_per_formula :: Int
       }
   deriving (Show)
 
@@ -54,17 +62,19 @@ parseFlags = customExecParser (prefs noBacktrack) with_desc
 
 nestedFlagsParser :: Parser NestedFlags
 nestedFlagsParser =
-  hsubparser
-    ( ( command
-          "test"
-          ( info testFlagsParser (progDesc "Run tests")
-          )
-      )
-        <> ( command
-               "bench"
-               (info benchFlagsParser (progDesc "Run benchmarks"))
-           )
+  hsubparser $
+    ( command
+        "randomtest"
+        $ info randomTestFlagsParser (progDesc "Run randomized tests")
     )
+      <> ( command
+             "test"
+             $ info testFlagsParser (progDesc "Run tests")
+         )
+      <> ( command
+             "bench"
+             $ info benchFlagsParser (progDesc "Run benchmarks")
+         )
 
 benchFlagsParser :: Parser NestedFlags
 benchFlagsParser =
@@ -95,6 +105,50 @@ testFlagsParser =
           <> value [(0, Inf)]
           <> help "Range of tests to run"
       )
+
+randomTestFlagsParser :: Parser NestedFlags
+randomTestFlagsParser =
+  RandomTestFlags
+    <$> option
+      auto
+      ( long "upper_bound"
+          <> short 'b'
+          <> metavar "INT64"
+          <> value 200
+          <> help "Upper bound for random events"
+      )
+      <*> option
+        auto
+        ( long "events_per_db"
+            <> short 'e'
+            <> metavar "INT"
+            <> value 10
+            <> help "Number of events per predicate per db"
+        )
+      <*> option
+        auto
+        ( long "db_per_ts"
+            <> short 'd'
+            <> metavar "INT"
+            <> value 1
+            <> help "Number of databases per time stamp"
+        )
+      <*> option
+        auto
+        ( long "num_ts"
+            <> short 'n'
+            <> metavar "INT"
+            <> value 40
+            <> help "Number of timestamps"
+        )
+      <*> option
+        auto
+        ( long "num_reps"
+            <> short 'r'
+            <> metavar "INT"
+            <> value 50
+            <> help "Number of testcases per formula"
+        )
 
 parseBound :: T.Text -> Maybe Bnd
 parseBound "*" = Just Inf

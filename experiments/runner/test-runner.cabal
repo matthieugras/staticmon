@@ -1,8 +1,8 @@
-cabal-version:      3.0
-name:               test-runner
-version:            0.1.0.0
-synopsis:           Test runner for staticmon
-category:           Testing
+cabal-version: 3.0
+name:          test-runner
+version:       0.1.0.0
+synopsis:      Test runner for staticmon
+category:      Testing
 
 executable test-runner
   main-is:            Main.hs
@@ -12,26 +12,29 @@ executable test-runner
     EventPrinting
     Flags
     Monitors
+    RandomTestRunner
     Shelly.Helpers
+    SignatureParser
     TestRunner
 
   build-depends:
     , aeson                  ^>=2.0.3.0
+    , attoparsec             ^>=0.14.4
     , base                   ^>=4.16.1.0
     , cassava                ^>=0.5.2.0
     , containers             ^>=0.6.5.1
     , fmt                    ^>=0.6.3.0
+    , lifted-async           ^>=0.10.2.2
+    , lifted-base            ^>=0.2.3.12
     , mtl                    ^>=2.3
     , optparse-applicative   ^>=0.17.0.0
+    , random                 ^>=1.2.1.1
     , shelly                 >=1.10.0   && <1.10.1
     , terminal-progress-bar  >=0.4.1    && <0.4.2
     , text                   >=2.0      && <2.0.1
     , vector                 ^>=0.12.3.1
 
-  ghc-options:
-    -rtsopts
-    -fno-full-laziness
-
+  ghc-options:        -rtsopts -fno-full-laziness
   hs-source-dirs:     app lib
   default-language:   GHC2021
   default-extensions:

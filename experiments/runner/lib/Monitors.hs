@@ -6,6 +6,7 @@ module Monitors
     prepareAndRunMonitor,
     prepareAndBenchmarkMonitor,
     monitorName,
+    verifyMonitor,
   )
 where
 
@@ -62,6 +63,12 @@ prepareAndBenchmarkMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagS
 prepareAndBenchmarkMonitor Monitor {..} (s, f, l) = do
   prepareMonitor s f $ \state ->
     runBenchmark state s f l
+
+verifyMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagSh ()
+verifyMonitor mon args =
+  prepareAndRunMonitor verimon args $ \monp_out ->
+    prepareAndRunMonitor mon args $ \smon_out ->
+      run_ "diff" [toTextIgnore smon_out, toTextIgnore monp_out]
 
 monitors :: [Monitor]
 monitors = [monpoly, verimon, staticmon, cppmon]

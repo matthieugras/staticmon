@@ -129,4 +129,7 @@ runBenchmarks' = do
     >>= (liftIO . TL.writeFile outfile)
 
 runBenchmarks :: Flags -> IO ()
-runBenchmarks = shelly . (tracing False) . (shellyWithFlags runBenchmarks')
+runBenchmarks =
+  shelly
+    . tracing False
+    . shellyWithFlags runBenchmarks'

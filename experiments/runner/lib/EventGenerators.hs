@@ -1,12 +1,18 @@
 {-# LANGUAGE ParallelListComp #-}
 
-module EventGenerators (getGenerator) where
+module EventGenerators (getGenerator, generateRandomLog) where
 
-import Control.Monad (forM_, replicateM_)
+import Control.Monad (forM_, replicateM, replicateM_)
+import Control.Monad.Reader qualified as R
 import Data.Int (Int64)
 import Data.Text qualified as T
 import EventPrinting
+import Flags (Flags (..), NestedFlags (..))
+import Shelly.Helpers (FlagSh (..))
+import Shelly.Lifted (when)
+import SignatureParser (SigType (..), Signature, parseSig)
 import System.IO (FilePath)
+import System.Random.Stateful (globalStdGen, uniformRM)
 
 intArgs is = map Intgr is
 
@@ -44,3 +50,23 @@ simplePred1Gen fp = withPrintState fp $ do
     newDb i
     outputNewEvent "A" (intArgs [5, 10])
   endOutput
+
+randomEvent arity ub =
+  intArgs <$> (replicateM arity (uniformRM (0, ub) globalStdGen))
+
+generateRandomLog :: FilePath -> Signature -> FlagSh ()
+generateRandomLog fp sig =
+  let arrsig = map (\(a, b) -> (a, length b)) sig
+   in do
+        when (any (any (/= IntTy) . snd) sig) $
+          fail "only integer signatures supported"
+        Flags {f_nes_flags = RandomTestFlags {..}, ..} <- R.ask
+        R.liftIO . (withPrintState fp) $ do
+          forM_ [0 .. rt_num_ts] $ \ts ->
+            replicateM_ rt_db_per_ts $ do
+              newDb (fromIntegral ts)
+              forM_ arrsig $ \(name, arity) ->
+                replicateM_ rt_events_per_db $
+                  randomEvent arity rt_ub
+                    >>= outputNewEvent name
+          endOutput
