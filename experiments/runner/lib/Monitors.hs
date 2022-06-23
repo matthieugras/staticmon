@@ -14,6 +14,7 @@ import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Data.Text.Lazy.IO qualified as LT
 import Flags (Flags (..))
 import Shelly.Helpers (FlagSh (..), shellyWithFlags)
 import Shelly.Lifted
@@ -26,7 +27,7 @@ data Monitor = forall s.
       forall a.
       ( FilePath -> -- Sig file
         FilePath -> -- Formula file
-        (s -> FlagSh a) -> -- Callback
+        (s -> FlagSh a) -> -- Action to run with the state
         FlagSh a
       ),
     runBenchmark ::
@@ -92,7 +93,7 @@ cppmon = Monitor {..}
     prepareMonitor s f c =
       runSaveOut "monpoly" (["-cppmon"] ++ monpolyBaseOpts s f) c
     runBenchmark f s _ l =
-      runDiscardOut "cppmon" (opts s f l)
+      runDiscard "cppmon" (opts s f l)
         & time <&> fst
     runMonitor f a s _ l =
       runSaveOut "cppmon" (opts s f l) a
@@ -110,7 +111,7 @@ staticmon = Monitor {..}
       run_ "ninja" ["--quiet", "-C", builddir]
       c (builddir </> "bin" </> "staticmon")
     runBenchmark exe _ _ l =
-      runDiscardOut exe ["--log", toTextIgnore l]
+      runDiscard exe ["--log", toTextIgnore l]
         & time
         <&> fst
     runMonitor exe a _ _ l =
@@ -123,13 +124,7 @@ monpolyBaseOpts s f = ["-formula", toTextIgnore f, "-sig", toTextIgnore s]
 runSaveOut exe opts a =
   withTmpDir $ \d ->
     let outf = d <> "output"
-     in run exe opts
-          & print_stdout False
-          >>= liftIO . T.writeFile outf
-          >> a outf
-
-runDiscardOut exe opts =
-  print_stdout False $ run_ exe opts
+     in runPipe exe opts outf >> a outf
 
 monitorMonpoly a v s f l =
   runSaveOut "monpoly" (opts ++ monpolyBaseOpts s f) a
@@ -142,4 +137,10 @@ benchmarkMonpoly v s f l =
     opts = (if v then ["-verified"] else []) ++ ["-log", toTextIgnore l]
 
 runMonpoly opts s f =
-  runDiscardOut "monpoly" (opts ++ monpolyBaseOpts s f)
+  runDiscard "monpoly" (opts ++ monpolyBaseOpts s f)
+
+runDiscard exe args = runPipe exe args "/dev/null"
+
+runPipe exe args outf = do
+  runHandle exe (map toTextArg args) $ \out ->
+    liftIO $ LT.hGetContents out >>= (LT.writeFile outf)

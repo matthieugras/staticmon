@@ -18,7 +18,7 @@ struct mnext {
   using rec_tab_t = table_util::tab_t_of_row_t<ResT>;
 
   auto eval(database &db, const ts_list &ts) {
-    auto rec_tabs = f_->eval(db, ts);
+    auto rec_tabs = f_.eval(db, ts);
     static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
                   "unexpected table type");
     past_ts_.insert(past_ts_.end(), ts.begin(), ts.end());
@@ -55,7 +55,7 @@ struct mprev {
   using rec_tab_t = table_util::tab_t_of_row_t<ResT>;
 
   auto eval(database &db, const ts_list &ts) {
-    auto rec_tabs = f_->eval(db, ts);
+    auto rec_tabs = f_.eval(db, ts);
     static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
                   "unexpected table type");
     past_ts_.insert(past_ts_.end(), ts.begin(), ts.end());

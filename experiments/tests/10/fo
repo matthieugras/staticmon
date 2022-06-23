@@ -1,0 +1,1 @@
+(((EXISTS w. (EXISTS x, y, z. A(c,w,a,y,x,b,z,1))) AND (d = a + b)) AND (c > d)) AND (e = d - c)

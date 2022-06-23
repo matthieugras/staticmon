@@ -35,7 +35,7 @@ check_ipo_supported(LANGUAGES C CXX)
 
 if(CMAKE_BUILD_TYPE MATCHES DEBUG)
   add_compile_definitions(GLIBCXX_DEBUG=1)
-  add_compile_options(-O2)
+  # add_compile_options(-O2)
 endif()
 
 if((CMAKE_BUILD_TYPE MATCHES RELEASE) OR (CMAKE_BUILD_TYPE MATCHES

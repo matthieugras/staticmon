@@ -1,0 +1,1 @@
+A(c,a,b) AND (D(c,b) AND (B(b,a) OR C(a,b)))

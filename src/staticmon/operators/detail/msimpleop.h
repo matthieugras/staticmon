@@ -81,8 +81,6 @@ struct mandrel {
       keep_row = !(res1 < res2);
     else if constexpr (is_neg && std::is_same_v<CstTy, cst_less_eq>)
       keep_row = !(res1 <= res2);
-    else if constexpr (is_neg && std::is_same_v<CstTy, cst_eq>)
-      keep_row = res1 == res2;
     else if constexpr (!is_neg && std::is_same_v<CstTy, cst_eq>)
       keep_row = res1 == res2;
     else if constexpr (!is_neg && std::is_same_v<CstTy, cst_less>)

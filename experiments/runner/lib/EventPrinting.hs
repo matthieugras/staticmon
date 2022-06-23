@@ -10,7 +10,7 @@ where
 
 import Control.Applicative (liftA2)
 import Control.Exception (assert)
-import Control.Monad (when)
+import Control.Monad (when, (<$!>))
 import Control.Monad.State.Strict qualified as S
 import Data.Foldable (foldr, toList)
 import Data.Function ((&))
@@ -42,7 +42,7 @@ endOutput :: OutpS ()
 endOutput = endLine
 
 withPrintState :: FilePath -> OutpS () -> IO ()
-withPrintState outf action =
+withPrintState !outf !action =
   withFile
     outf
     WriteMode
@@ -80,4 +80,4 @@ endLine =
   getOutHandle
     >>= (S.liftIO . (flip TIO.hPutStr) ";\n")
 
-getOutHandle = outHandle <$> S.get
+getOutHandle = outHandle <$!> S.get
