@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Redundant <&>" #-}
 module BenchmarkRunner (runBenchmarks) where
 
 import Control.Applicative (liftA2)
@@ -7,8 +10,7 @@ import Control.Monad.Reader qualified as RD
 import Data.Aeson ((.:))
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as A
-import Data.Csv
-  ( DefaultOrdered (..),
+import Data.Csv ( DefaultOrdered (..),
     ToNamedRecord (..),
     namedRecord,
     (.=),
@@ -24,7 +26,11 @@ import Data.Text.Lazy.IO qualified as TL
 import Data.Vector qualified as V
 import EventGenerators (getGenerator)
 import Flags (Flags (..), NestedFlags (..))
-import Monitors (monitorName, monitors, prepareAndBenchmarkMonitor)
+import Monitors
+  ( monitorName,
+    monitors,
+    prepareAndBenchmarkMonitor,
+  )
 import Shelly.Helpers (FlagSh (..), shellyWithFlags)
 import Shelly.Lifted
 import System.IO (FilePath)
@@ -60,7 +66,7 @@ instance A.FromJSON JsonBenchConfig where
 data BenchConfig = BenchConfig
   { bench_id :: Int,
     bench_disp_name :: T.Text,
-    bench_gen :: (FilePath -> IO ()),
+    bench_gen :: FilePath -> IO (),
     bench_path :: FilePath
   }
 
@@ -68,17 +74,16 @@ collectConfigs :: FlagSh [BenchConfig]
 collectConfigs =
   pwd
     >>= ls
-    >>= (filterM test_d)
-    <&> (zip [0 :: Int ..])
+    >>= filterM test_d
+    <&> zip [0 :: Int ..]
     >>= traverse (uncurry (flip chdir . readConfig))
   where
     readConfig bench_id = do
       bench_path <- pwd
-      A.eitherDecodeFileStrict @JsonBenchConfig (bench_path </> "config.json")
-        & liftIO
+      liftIO (A.eitherDecodeFileStrict @JsonBenchConfig (bench_path </> "config.json"))
         >>= ( \case
-                Left (err) -> fail err
-                Right (JsonBenchConfig {..}) ->
+                Left err -> fail err
+                Right JsonBenchConfig {..} ->
                   let bench_gen = getGenerator jb_gen
                    in return BenchConfig {bench_disp_name = jb_disp_name, ..}
             )
@@ -91,8 +96,7 @@ runMonitorBenchmarks BenchConfig {..} builder = do
   reps <- RD.ask <&> f_nes_flags <&> bf_reps
   withTmpDir $ \d ->
     let log_f = d </> "log"
-     in (liftIO $ bench_gen log_f)
-          -- >> (cp log_f "/home/grasm/logfile")
+     in liftIO (bench_gen log_f)
           >> foldrM
             ( \(m, i) builder ->
                 let s = bench_path </> "sig"
@@ -119,8 +123,8 @@ runMonitorBenchmarks BenchConfig {..} builder = do
 
 runBenchmarks' :: FlagSh ()
 runBenchmarks' = do
-  monpath <- f_mon_path <$> RD.ask
-  outfile <- (bf_out . f_nes_flags) <$> RD.ask
+  monpath <- RD.asks f_mon_path
+  outfile <- RD.asks (bf_out . f_nes_flags)
   let bench_dir = monpath </> "experiments" </> "bench"
   chdir bench_dir collectConfigs
     >>= foldrM runMonitorBenchmarks mempty

@@ -33,7 +33,7 @@ data Flags = Flags
   }
   deriving (Show)
 
-parseFlags :: IO (Flags)
+parseFlags :: IO Flags
 parseFlags = customExecParser (prefs noBacktrack) with_desc
   where
     opts =
@@ -63,18 +63,15 @@ parseFlags = customExecParser (prefs noBacktrack) with_desc
 nestedFlagsParser :: Parser NestedFlags
 nestedFlagsParser =
   hsubparser $
-    ( command
-        "randomtest"
-        $ info randomTestFlagsParser (progDesc "Run randomized tests")
-    )
-      <> ( command
-             "test"
-             $ info testFlagsParser (progDesc "Run tests")
-         )
-      <> ( command
-             "bench"
-             $ info benchFlagsParser (progDesc "Run benchmarks")
-         )
+    command
+      "randomtest"
+      (info randomTestFlagsParser (progDesc "Run randomized tests"))
+      <> command
+        "test"
+        (info testFlagsParser (progDesc "Run tests"))
+      <> command
+        "bench"
+        (info benchFlagsParser (progDesc "Run benchmarks"))
 
 benchFlagsParser :: Parser NestedFlags
 benchFlagsParser =
@@ -159,13 +156,13 @@ parseBound t =
 
 parseInterval :: T.Text -> Maybe Interval
 parseInterval s =
-  case (T.split (== '-') s) of
+  case T.split (== '-') s of
     [x, y] -> do
       x_bnd <- parseBound x
       y_bnd <- parseBound y
       case (x_bnd, y_bnd) of
         (Inf, Inf) -> Nothing
-        (Bounded a, Bounded b) | (a > b) -> Nothing
+        (Bounded a, Bounded b) | a > b -> Nothing
         (Inf, r) -> Just (0, r)
         (Bounded a, r) -> Just (a, r)
     [x] ->

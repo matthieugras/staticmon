@@ -22,21 +22,18 @@ withGenerateFormula c =
     let f = d </> "out.mfotl"
         s = d </> "out.sig"
      in do
-          print_stdout False $ (run_ "gen_fma" ["-output"])
+          print_stdout False $ run_ "gen_fma" ["-output"]
           c f s
 
 saveFiles s f l = do
-  basedir <- f_mon_path <$> RD.ask
-  forM_ [s, f, l] ((flip cp) basedir)
+  basedir <- RD.asks f_mon_path
+  forM_ [s, f, l] (`cp` basedir)
 
 runSingleTest sem =
-  (flip onException) (signalQSem sem) $
+  flip onException (signalQSem sem) $
     withGenerateFormula $ \f s -> withTmpDir $ \d ->
       let l = d </> "log"
-       in T.readFile s
-            & liftIO
-            <&> parseSig
-            >>= generateRandomLog l
+       in liftIO (T.readFile s) >>= generateRandomLog l . parseSig
             >> onException (verifyMonitor staticmon (s, f, l)) (saveFiles s f l)
 
 dispatchSingleTest sem =

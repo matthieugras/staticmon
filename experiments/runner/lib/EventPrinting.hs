@@ -67,17 +67,17 @@ newDb !ts =
 
 outputNewEvent :: T.Text -> [EventData] -> OutpS ()
 outputNewEvent !pname !dat =
-  getOutHandle >>= (S.liftIO . (flip TIO.hPutStr) ev)
+  getOutHandle >>= (S.liftIO . flip TIO.hPutStr ev)
   where
-    ev = " " +| pname |+ "(" +| (eventDataF dat) |+ ")"
-    eventDataF = mconcat . (intersperse ", ") . (map build) . toList
+    ev = " " +| pname |+ "(" +| eventDataF dat |+ ")"
+    eventDataF = mconcat . intersperse ", " . map build . toList
 
 beginLine ts =
   getOutHandle
-    >>= (S.liftIO . (flip TIO.hPutStr) ("@" +| ts |+ " "))
+    >>= (S.liftIO . flip TIO.hPutStr ("@" +| ts |+ " "))
 
 endLine =
   getOutHandle
-    >>= (S.liftIO . (flip TIO.hPutStr) ";\n")
+    >>= (S.liftIO . flip TIO.hPutStr ";\n")
 
 getOutHandle = outHandle <$!> S.get

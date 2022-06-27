@@ -32,12 +32,11 @@ data Monitor = forall s.
         FlagSh a
       ),
     runBenchmark ::
-      ( s -> -- Some state
-        FilePath -> -- Sig file
-        FilePath -> -- Formula file
-        FilePath -> -- Log file
-        FlagSh (Double) -- Execution time
-      ),
+      s -> -- Some state
+      FilePath -> -- Sig file
+      FilePath -> -- Formula file
+      FilePath -> -- Log file
+      FlagSh Double,
     runMonitor ::
       forall a.
       ( s -> -- Some state
@@ -98,7 +97,7 @@ cppmon = Monitor {..}
         toTextIgnore l
       ]
     prepareMonitor s f c =
-      runSaveOut "monpoly" (["-cppmon"] ++ monpolyBaseOpts s f) c
+      runSaveOut "monpoly" ("-cppmon" : monpolyBaseOpts s f) c
     runBenchmark f s _ l =
       runDiscard "cppmon" (opts s f l)
         & time <&> fst
@@ -109,8 +108,8 @@ cppmon = Monitor {..}
 staticmon = Monitor {..}
   where
     prepareMonitor s f c = do
-      basedir <- f_mon_path <$> RD.ask
-      b <- f_build_dir <$> RD.ask
+      basedir <- RD.asks f_mon_path
+      b <- RD.asks f_build_dir
       let header_dir = basedir </> "src" </> "staticmon" </> "input_formula"
           opts = ["-explicitmon", "-explicitmon_prefix", toTextIgnore header_dir]
           builddir = toTextIgnore $ basedir </> b
@@ -136,12 +135,12 @@ runSaveOut exe opts a =
 monitorMonpoly a v s f l =
   runSaveOut "monpoly" (opts ++ monpolyBaseOpts s f) a
   where
-    opts = (if v then ["-verified"] else []) ++ ["-log", toTextIgnore l]
+    opts = (["-verified" | v]) ++ ["-log", toTextIgnore l]
 
 benchmarkMonpoly v s f l =
   runMonpoly opts s f & time <&> fst
   where
-    opts = (if v then ["-verified"] else []) ++ ["-log", toTextIgnore l]
+    opts = (["-verified" | v]) ++ ["-log", toTextIgnore l]
 
 runMonpoly opts s f =
   runDiscard "monpoly" (opts ++ monpolyBaseOpts s f)
@@ -150,4 +149,4 @@ runDiscard exe args = runPipe exe args "/dev/null"
 
 runPipe exe args outf = do
   runHandle exe (map toTextArg args) $ \out ->
-    liftIO $ LT.hGetContents out >>= (LT.writeFile outf)
+    liftIO $ LT.hGetContents out >>= LT.writeFile outf

@@ -23,7 +23,7 @@ type BndInterval = (Int, Int)
 
 runTest pg i =
   chdir (show i) $ do
-    args <- (,,) <$> (absPath "sig") <*> (absPath "fo") <*> (absPath "log")
+    args <- (,,) <$> absPath "sig" <*> absPath "fo" <*> absPath "log"
     verifyMonitor staticmon args
     liftIO $ PG.incProgress pg 1
 
@@ -31,7 +31,7 @@ runIntervalTest pg nfolders (lb, ub) =
   mapM_ (runTest pg) [lb .. ub]
 
 runTests' = do
-  monpath <- f_mon_path <$> RD.ask
+  monpath <- RD.asks f_mon_path
   cd (monpath </> "experiments" </> "tests")
   nfolders <- countFolders
   when (nfolders == 0) $

@@ -1,4 +1,7 @@
 {-# LANGUAGE ParallelListComp #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use second" #-}
 
 module EventGenerators (getGenerator, generateRandomLog) where
 
@@ -14,7 +17,7 @@ import SignatureParser (SigType (..), Signature, parseSig)
 import System.IO (FilePath)
 import System.Random.Stateful (globalStdGen, uniformRM)
 
-intArgs is = map Intgr is
+intArgs = map Intgr
 
 getGenerator :: T.Text -> (FilePath -> IO ())
 getGenerator genid =
@@ -52,7 +55,7 @@ simplePred1Gen fp = withPrintState fp $ do
   endOutput
 
 randomEvent arity ub =
-  intArgs <$> (replicateM arity (uniformRM (0, ub) globalStdGen))
+  intArgs <$> replicateM arity (uniformRM (0, ub) globalStdGen)
 
 generateRandomLog :: FilePath -> Signature -> FlagSh ()
 generateRandomLog fp sig =
@@ -61,7 +64,7 @@ generateRandomLog fp sig =
         when (any (any (/= IntTy) . snd) sig) $
           fail "only integer signatures supported"
         Flags {f_nes_flags = RandomTestFlags {..}, ..} <- R.ask
-        R.liftIO . (withPrintState fp) $ do
+        R.liftIO . withPrintState fp $ do
           forM_ [0 .. rt_num_ts] $ \ts ->
             replicateM_ rt_db_per_ts $ do
               newDb (fromIntegral ts)

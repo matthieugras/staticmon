@@ -7,4 +7,4 @@ import Shelly.Lifted
 type FlagSh a = ReaderT Flags Sh a
 
 shellyWithFlags :: FlagSh a -> Flags -> Sh a
-shellyWithFlags action f = runReaderT action f
+shellyWithFlags = runReaderT
