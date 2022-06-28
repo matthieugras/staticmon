@@ -29,6 +29,10 @@ struct minterval<mp_size_t<lower_bound>, mp_size_t<upper_bound>>
   static constexpr bool contains(std::size_t p) {
     return p >= lower_bound && p <= upper_bound;
   }
+
+  static constexpr bool gt_upper(std::size_t p) { return p > upper_bound; }
+
+  static constexpr bool leq_upper(std::size_t p) { return p <= upper_bound; }
 };
 
 template<std::size_t lower_bound>

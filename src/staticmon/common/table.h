@@ -24,29 +24,21 @@ using tab_t_of_row_t = mp_rename<T, table>;
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info;
 
+template<typename L1, typename L2>
+using comp_unique_idx = mp_transform<
+  mp_second,
+  mp_filter_q<mp_bind<mp_not, mp_bind<mp_contains, L2, mp_bind_back<mp_first>>>,
+              mp_zip<L1, mp_iota<mp_size<L1>>>>>;
+
+template<typename L1, typename L2>
+using comp_common_idx =
+  mp_filter_q<mp_bind_back<mp_not_same, mp_size<L1>>,
+              mp_transform_q<mp_bind_front<mp_find, L1>, L2>>;
+
+template<typename Idxs, typename L1, typename L2>
+using comp_matching_cols =
+  mp_transform_q<mp_bind<mp_find, L2, mp_bind_front<mp_at, L1>>, Idxs>;
 namespace detail {
-  template<typename L1, typename L2, typename T1, typename T2>
-  struct join_info_impl {
-    using l1_idx_map = mp_transform<mp_list, L1, mp_iota<mp_size<L1>>>;
-    using l2_idx = mp_transform<mp_list, mp_iota<mp_size<L2>>, L2>;
-    template<typename IdxVar>
-    using match_idx_fn =
-      mp_list<mp_map_find<l1_idx_map, mp_at_c<IdxVar, 1>>, mp_at_c<IdxVar, 0>>;
-    using matching_idx = mp_transform<match_idx_fn, l2_idx>;
-    template<typename Idxs>
-    using part_cond = mp_not<std::is_void<mp_at_c<Idxs, 0>>>;
-    using common_uniq2 = mp_partition<matching_idx, part_cond>;
-    using l2_unique = mp_project_c<mp_second<common_uniq2>, 1>;
-    using common = mp_first<common_uniq2>;
-    using unzipped_common = mp_list<mp_project_c<mp_project_c<common, 0>, 1>,
-                                    mp_project_c<common, 1>>;
-    // using l1_unique =
-    //   mp_set_difference<mp_iota<mp_size<L1>>, mp_at_c<unzipped_common, 0>>;
-    using l1_common = mp_at_c<unzipped_common, 0>;
-    using l2_common = mp_at_c<unzipped_common, 1>;
-    using result_row_idxs = mp_append<L1, mp_apply_idxs<L2, l2_unique>>;
-    using result_row_type = mp_append<T1, mp_apply_idxs<T2, l2_unique>>;
-  };
 
   template<typename Idxs, typename... Args>
   auto make_join_map(const table<Args...> &t) {
@@ -138,17 +130,17 @@ struct reorder_info {
 
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info {
-  using impl = detail::join_info_impl<L1, L2, T1, T2>;
-  using l1_common = typename impl::l1_common;
-  using l2_common = typename impl::l2_common;
-  using l2_unique = typename impl::l2_unique;
-  using ResT = typename impl::result_row_type;
-  using ResL = typename impl::result_row_idxs;
+  using l1_common = comp_common_idx<L1, L2>;
+  using l2_common = comp_matching_cols<l1_common, L1, L2>;
+  using l2_unique = comp_unique_idx<L2, L1>;
+  using ResT = mp_append<T1, mp_apply_idxs<T2, l2_unique>>;
+  using ResL = mp_append<L1, mp_apply_idxs<L2, l2_unique>>;
 };
 
 
 template<typename L2, typename T2>
-struct join_info<mp_list<>, L2, std::tuple<>, T2> {
+requires(mp_size<L2>::value >
+         0) struct join_info<mp_list<>, L2, std::tuple<>, T2> {
   using l1_common = mp_list<>;
   using l2_common = mp_list<>;
   using l2_unique = mp_iota<mp_size<L2>>;
@@ -164,7 +156,6 @@ struct join_info<L1, mp_list<>, T1, std::tuple<>> {
   using ResT = T1;
   using ResL = L1;
 };
-
 
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_result_info {

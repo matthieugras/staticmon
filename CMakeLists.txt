@@ -61,6 +61,12 @@ if(ENABLE_FILE_INPUT)
   include(cmake/lexy.cmake)
 endif()
 
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  add_compile_options(-fdiagnostics-color=always)
+elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  add_compile_options(-fcolor-diagnostics)
+endif()
+
 # if(ENABLE_SOCK_INTF) include(cmake/uring.cmake) endif()
 
 add_subdirectory(src)

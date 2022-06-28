@@ -10,6 +10,9 @@ using namespace boost::mp11;
 template<typename... T>
 using remove_cv_refs_t = mp_transform<std::remove_cvref_t, mp_list<T...>>;
 
+template<typename T1, typename T2>
+using mp_not_same = mp_not<std::is_same<T1, T2>>;
+
 template<typename T, typename... Args>
 std::vector<std::remove_cvref_t<T>> make_vector(T &&fst_arg, Args &&...args) {
   std::vector<std::remove_cvref_t<T>> res;
