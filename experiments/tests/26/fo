@@ -1,0 +1,1 @@
+NOT (EXISTS x. (A(x) OR (B(x) AND C(x))))

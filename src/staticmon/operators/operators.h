@@ -8,3 +8,4 @@
 #include <staticmon/operators/detail/operator_types.h>
 #include <staticmon/operators/detail/unary_temp_ops.h>
 #include <staticmon/operators/detail/verdict_printer.h>
+#include <staticmon/operators/detail/mrelops.h>

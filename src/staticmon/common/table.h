@@ -206,7 +206,7 @@ auto table_union(table<Args1...> &&tab1, table<Args2...> &tab2) {
   tab1.reserve(tab1.size() + tab2.size());
   if constexpr (std::is_same_v<L1, L2>) {
     static_assert(std::is_same_v<T1, T2>, "layouts same but not row types");
-    tab1.move(tab2);
+    tab1.merge(tab2);
   } else {
     using reorder_mask = get_reorder_mask<L2, L1>;
     static_assert(std::is_same_v<mp_apply_idxs<T2, reorder_mask>, T1>,
