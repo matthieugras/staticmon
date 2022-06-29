@@ -55,16 +55,12 @@ struct aggregation_mixin<SharedBase, no_aggregation, T2> {
   }
 };
 
-template<typename SharedBase, typename TemporalAggregation, typename Interval,
-         typename T2>
-struct interval_bnd_mixin {
-  static_assert(always_false_v<SharedBase>, "not implemented");
-};
+template<typename SharedBase, typename Interval, typename T2>
+struct interval_bnd_mixin {};
 
-template<typename SharedBase, typename TemporalAggregation, typename Interval,
-         typename T2>
-requires(!Interval::is_infinite) struct interval_bnd_mixin<
-  SharedBase, TemporalAggregation, Interval, T2> {
+template<typename SharedBase, typename Interval, typename T2>
+requires(
+  !Interval::is_infinite) struct interval_bnd_mixin<SharedBase, Interval, T2> {
   using table_buf_t = table_buf<T2>;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
 
@@ -107,7 +103,7 @@ requires(!Interval::is_infinite) struct interval_bnd_mixin<
 template<typename TemporalAggregation, typename Interval, typename T2>
 struct base_mixin
     : interval_bnd_mixin<base_mixin<TemporalAggregation, Interval, T2>,
-                         TemporalAggregation, Interval, T2>,
+                         Interval, T2>,
       aggregation_mixin<base_mixin<TemporalAggregation, Interval, T2>,
                         TemporalAggregation, T2> {
 
@@ -211,7 +207,7 @@ struct monce {
 
   auto eval(database &db, const ts_list &ts) {
     ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
-    auto rec_tabs = f_->eval(db, ts);
+    auto rec_tabs = f_.eval(db, ts);
     static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
                   "unexpected table type");
     std::vector<rec_tab_t> res;
