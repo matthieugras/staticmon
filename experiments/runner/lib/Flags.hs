@@ -82,12 +82,14 @@ benchFlagsParser =
           <> short 'r'
           <> metavar "INT"
           <> value 1
+          <> showDefault
           <> help "Number of repetitions"
       )
       <*> strOption
         ( long "output_file"
             <> short 'o'
             <> value "~/out.csv"
+            <> showDefault
             <> help "Where to write the measurements"
         )
 
@@ -99,6 +101,7 @@ testFlagsParser =
       ( long "tests"
           <> short 's'
           <> metavar "[((n1|*) - (n2|*)) | *]"
+          <> showDefaultWith (const "*")
           <> value [(0, Inf)]
           <> help "Range of tests to run"
       )
@@ -112,6 +115,7 @@ randomTestFlagsParser =
           <> short 'b'
           <> metavar "INT64"
           <> value 200
+          <> showDefault
           <> help "Upper bound for random events"
       )
       <*> option
@@ -120,6 +124,7 @@ randomTestFlagsParser =
             <> short 'e'
             <> metavar "INT"
             <> value 10
+            <> showDefault
             <> help "Number of events per predicate per db"
         )
       <*> option
@@ -128,6 +133,7 @@ randomTestFlagsParser =
             <> short 'd'
             <> metavar "INT"
             <> value 1
+            <> showDefault
             <> help "Number of databases per time stamp"
         )
       <*> option
@@ -136,6 +142,7 @@ randomTestFlagsParser =
             <> short 'n'
             <> metavar "INT"
             <> value 40
+            <> showDefault
             <> help "Number of timestamps"
         )
       <*> option
@@ -143,7 +150,8 @@ randomTestFlagsParser =
         ( long "num_reps"
             <> short 'r'
             <> metavar "INT"
-            <> value 50
+            <> value 10
+            <> showDefault
             <> help "Number of testcases per formula"
         )
 
