@@ -8,19 +8,15 @@ module EventPrinting
   )
 where
 
-import Control.Applicative (liftA2)
-import Control.Exception (assert)
-import Control.Monad (when, (<$!>))
+import Control.Monad ((<$!>))
 import Control.Monad.State.Strict qualified as S
-import Data.Foldable (foldr, toList)
-import Data.Function ((&))
+import Data.Foldable (toList)
 import Data.Int
 import Data.List (intersperse)
-import Data.Maybe (fromJust, maybe)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
 import Fmt
-import System.IO (FilePath, Handle, IOMode (..), withFile)
+import System.IO (Handle, IOMode (..), withFile)
 
 default (T.Text)
 
@@ -70,7 +66,7 @@ outputNewEvent !pname !dat =
   getOutHandle >>= (S.liftIO . flip TIO.hPutStr ev)
   where
     ev = " " +| pname |+ "(" +| eventDataF dat |+ ")"
-    eventDataF = mconcat . intersperse ", " . map build . toList
+    eventDataF = mconcat . intersperse "," . map build . toList
 
 beginLine ts =
   getOutHandle

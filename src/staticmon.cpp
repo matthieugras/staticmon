@@ -24,6 +24,11 @@ ABSL_FLAG(std::string, log, "log", "path to log in monpoly format");
 ABSL_FLAG(std::string, vpath, "", "output file of the monitor's verdicts");
 #endif
 
+__attribute__((visibility("default"))) extern "C" const char *
+__asan_default_options() {
+  return "detect_leaks=false";
+}
+
 int main(int argc, char *argv[]) {
   absl::SetProgramUsageMessage("Explicit MFOTL monitor written in C++");
   absl::ParseCommandLine(argc, argv);

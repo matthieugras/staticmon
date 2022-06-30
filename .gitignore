@@ -19,3 +19,8 @@ experiments/runner/test-runner.eventlog.html
 experiments/runner/test-runner.eventlog
 experiments/runner/test-runner.hp.html
 experiments/runner/test-runner.hp_old.html
+
+experiments/runner/log
+experiments/runner/out.mfotl
+experiments/runner/out.sig
+experiments/runner/stderr

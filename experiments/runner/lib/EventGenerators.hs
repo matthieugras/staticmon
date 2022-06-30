@@ -1,20 +1,17 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Use second" #-}
 
 module EventGenerators (getGenerator, generateRandomLog) where
 
-import Control.Monad (forM_, replicateM, replicateM_)
+import Control.Monad (forM_, replicateM, replicateM_, when)
+import Control.Monad.Reader (ReaderT)
 import Control.Monad.Reader qualified as R
 import Data.Int (Int64)
 import Data.Text qualified as T
 import EventPrinting
 import Flags (Flags (..), NestedFlags (..))
-import Shelly.Helpers (FlagSh (..))
-import Shelly.Lifted (when)
-import SignatureParser (SigType (..), Signature, parseSig)
-import System.IO (FilePath)
+import SignatureParser (SigType (..), Signature)
 import System.Random.Stateful (globalStdGen, uniformRM)
 
 intArgs = map Intgr
@@ -57,12 +54,12 @@ simplePred1Gen fp = withPrintState fp $ do
 randomEvent arity ub =
   intArgs <$> replicateM arity (uniformRM (0, ub) globalStdGen)
 
-generateRandomLog :: FilePath -> Signature -> FlagSh ()
+generateRandomLog :: FilePath -> Signature -> ReaderT Flags IO ()
 generateRandomLog fp sig =
   let arrsig = map (\(a, b) -> (a, length b)) sig
    in do
         when (any (any (/= IntTy) . snd) sig) $
-          fail "only integer signatures supported"
+          error "only integer signatures supported"
         Flags {f_nes_flags = RandomTestFlags {..}, ..} <- R.ask
         R.liftIO . withPrintState fp $ do
           forM_ [0 .. rt_num_ts] $ \ts ->

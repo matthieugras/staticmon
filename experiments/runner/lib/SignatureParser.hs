@@ -2,8 +2,7 @@ module SignatureParser (parseSig, SigType (..), Signature) where
 
 import Control.Applicative ((<|>))
 import Data.Attoparsec.Text
-import Data.Char (isAlphaNum)
-import Data.Functor (($>), (<&>))
+import Data.Functor (($>))
 import Data.Text qualified as T
 
 data SigType = IntTy | FloatTy | StringTy deriving (Show, Eq)

@@ -273,7 +273,7 @@ private:
   struct ts_db_parse {
     static constexpr auto whitespace = dsl::ascii::blank / dsl::ascii::newline;
 
-    RULE dsl::at_sign + dsl::p<ts_parse> +
+    RULE dsl::at_sign + dsl::p<ts_parse> + dsl::whitespace +
       dsl::opt(dsl::peek_not(dsl::semicolon) >> dsl::p<db_parse>) +
       dsl::semicolon + dsl::if_(dsl::ascii::newline) + dsl::eof;
     VALUE lexy::callback<timestamped_database>(

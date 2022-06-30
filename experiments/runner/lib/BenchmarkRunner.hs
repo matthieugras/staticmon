@@ -1,25 +1,19 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Redundant <&>" #-}
 module BenchmarkRunner (runBenchmarks) where
 
 import Control.Applicative (liftA2)
-import Control.Exception (throwIO)
 import Control.Monad (filterM)
 import Control.Monad.Reader qualified as RD
 import Data.Aeson ((.:))
 import Data.Aeson qualified as A
-import Data.Aeson.KeyMap qualified as A
-import Data.Csv ( DefaultOrdered (..),
+import Data.Csv
+  ( DefaultOrdered (..),
     ToNamedRecord (..),
     namedRecord,
     (.=),
   )
 import Data.Csv.Incremental qualified as Csv
 import Data.Foldable (foldrM)
-import Data.Function ((&))
 import Data.Functor ((<&>))
-import Data.Map qualified as M
 import Data.Text qualified as T
 import Data.Text.Lazy.Encoding qualified as TL
 import Data.Text.Lazy.IO qualified as TL
@@ -31,9 +25,10 @@ import Monitors
     monitors,
     prepareAndBenchmarkMonitor,
   )
-import Shelly.Helpers (FlagSh (..), shellyWithFlags)
-import Shelly.Lifted
-import System.IO (FilePath)
+import Process (ls, test_d, withTmpDir)
+import System.FilePath ((</>))
+import UnliftIO (MonadIO (liftIO))
+import UnliftIO.Resource (runResourceT)
 
 data MeasurementRow = MeasurementRow
   { out_monitor :: T.Text,
@@ -62,6 +57,7 @@ data JsonBenchConfig = JsonBenchConfig
 instance A.FromJSON JsonBenchConfig where
   parseJSON (A.Object v) =
     JsonBenchConfig <$> v .: "display_name" <*> v .: "generator"
+  parseJSON _ = error "expected object"
 
 data BenchConfig = BenchConfig
   { bench_id :: Int,
@@ -70,16 +66,16 @@ data BenchConfig = BenchConfig
     bench_path :: FilePath
   }
 
-collectConfigs :: FlagSh [BenchConfig]
 collectConfigs =
-  pwd
-    >>= ls
+  do
+    monpath <- RD.asks f_mon_path
+    let bench_dir = monpath </> "experiments" </> "bench"
+    ls bench_dir
     >>= filterM test_d
-    <&> zip [0 :: Int ..]
-    >>= traverse (uncurry (flip chdir . readConfig))
+    >>= traverse (uncurry readConfig)
+      . zip [0 :: Int ..]
   where
-    readConfig bench_id = do
-      bench_path <- pwd
+    readConfig bench_id bench_path = do
       liftIO (A.eitherDecodeFileStrict @JsonBenchConfig (bench_path </> "config.json"))
         >>= ( \case
                 Left err -> fail err
@@ -88,10 +84,6 @@ collectConfigs =
                    in return BenchConfig {bench_disp_name = jb_disp_name, ..}
             )
 
-runMonitorBenchmarks ::
-  BenchConfig ->
-  Csv.NamedBuilder MeasurementRow ->
-  FlagSh (Csv.NamedBuilder MeasurementRow)
 runMonitorBenchmarks BenchConfig {..} builder = do
   reps <- RD.ask <&> f_nes_flags <&> bf_reps
   withTmpDir $ \d ->
@@ -107,7 +99,7 @@ runMonitorBenchmarks BenchConfig {..} builder = do
             (monitorItPairs reps)
   where
     runSingleBenchmark s f log_f m i builder = do
-      t <- prepareAndBenchmarkMonitor m (s, f, log_f)
+      t <- runResourceT $ prepareAndBenchmarkMonitor m (s, f, log_f)
       return $
         builder
           <> Csv.encodeNamedRecord
@@ -121,19 +113,14 @@ runMonitorBenchmarks BenchConfig {..} builder = do
     monitorItPairs reps =
       liftA2 (,) monitors [0 .. (reps - 1)]
 
-runBenchmarks' :: FlagSh ()
 runBenchmarks' = do
-  monpath <- RD.asks f_mon_path
   outfile <- RD.asks (bf_out . f_nes_flags)
-  let bench_dir = monpath </> "experiments" </> "bench"
-  chdir bench_dir collectConfigs
+  collectConfigs
     >>= foldrM runMonitorBenchmarks mempty
-    <&> Csv.encodeDefaultOrderedByName
-    <&> TL.decodeUtf8
     >>= (liftIO . TL.writeFile outfile)
+      . TL.decodeUtf8
+      . Csv.encodeDefaultOrderedByName
 
 runBenchmarks :: Flags -> IO ()
 runBenchmarks =
-  shelly
-    . tracing False
-    . shellyWithFlags runBenchmarks'
+  RD.runReaderT runBenchmarks'

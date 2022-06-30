@@ -22,7 +22,10 @@ data NestedFlags
         rt_events_per_db :: Int,
         rt_db_per_ts :: Int,
         rt_num_ts :: Int,
-        rt_reps_per_formula :: Int
+        rt_reps_per_formula :: Int,
+        rt_out_dir :: FilePath,
+        rt_fo_path :: Maybe FilePath,
+        rt_sig_path :: Maybe FilePath
       }
   deriving (Show)
 
@@ -153,6 +156,28 @@ randomTestFlagsParser =
             <> value 10
             <> showDefault
             <> help "Number of testcases per formula"
+        )
+      <*> strOption
+        ( long "out_dir"
+            <> short 'o'
+            <> metavar "PATH"
+            <> help "Path for output files"
+        )
+      <*> optional
+        ( strOption
+            ( long "formula"
+                <> short 'f'
+                <> metavar "PATH"
+                <> help "Path to formula (optional)"
+            )
+        )
+      <*> optional
+        ( strOption
+            ( long "sig"
+                <> short 's'
+                <> metavar "PATH"
+                <> help "Path to signature file (optional)"
+            )
         )
 
 parseBound :: T.Text -> Maybe Bnd

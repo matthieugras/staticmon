@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Monitors
   ( monitors,
     monpoly,
@@ -8,169 +6,173 @@ module Monitors
     prepareAndRunMonitor,
     prepareAndBenchmarkMonitor,
     verifyMonitor,
-    VerificationFailed(..),
+    VerificationFailure (..),
     Monitor (..),
   )
 where
 
-import Control.Exception (Exception, SomeException, mapException)
-import Control.Exception.Lifted (throwIO, try)
-import Control.Monad (guard)
+import Control.Exception (Exception)
+import Control.Monad.Reader (ReaderT)
 import Control.Monad.Reader qualified as RD
+import Control.Monad.Trans.Resource (ResourceT)
 import Data.Data (Typeable)
-import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
-import Data.Text.Lazy.IO qualified as LT
 import Flags (Flags (..))
-import Shelly (RunFailed (RunFailed))
-import Shelly.Helpers (FlagSh (..), shellyWithFlags)
-import Shelly.Lifted
+import Process
+import System.Clock (Clock (Monotonic), diffTimeSpec, getTime, toNanoSecs)
+import System.FilePath ((</>))
+import UnliftIO (MonadIO (liftIO), throwIO)
 
 default (T.Text)
 
-data VerificationFailed = VerificationFailed deriving (Show, Typeable)
+data VerificationFailure
+  = VerificationFailed FilePath
+  | VerificationCrash FilePath
 
-instance Exception VerificationFailed
+data PrepareMonitorFailed = PrepareMonitorFailed deriving (Show, Typeable)
+
+data RunMonitorFailed = RunMonitorFailed deriving (Show, Typeable)
+
+instance Exception PrepareMonitorFailed
+
+instance Exception RunMonitorFailed
+
+type FlagsReader = ReaderT Flags IO
+
+type FlagsResource = ResourceT FlagsReader
 
 data Monitor = forall s.
   Monitor
   { prepareMonitor ::
-      forall a.
-      ( FilePath -> -- Sig file
-        FilePath -> -- Formula file
-        (Either RunFailed s -> FlagSh a) -> -- Action to run with the state
-        FlagSh a
-      ),
+      FilePath -> -- Sig file
+      FilePath -> -- Formula file
+      FlagsResource (Either FilePath s), -- stderr or state
     runBenchmark ::
       s -> -- Some state
       FilePath -> -- Sig file
       FilePath -> -- Formula file
       FilePath -> -- Log file
-      FlagSh Double,
+      FlagsResource Double,
     runMonitor ::
-      forall a.
-      ( s -> -- Some state
-        FilePath -> -- Sig file
-        FilePath -> -- Formula file
-        FilePath -> -- Log file
-        (Either RunFailed FilePath -> FlagSh a) -> -- Action to run with the output
-        FlagSh a
-      ),
+      s -> -- Some state
+      FilePath -> -- Sig file
+      FilePath -> -- Formula file
+      FilePath -> -- Log file
+      FlagsResource (Either FilePath FilePath), -- stderr or stdout
     monitorName :: T.Text
   }
-
-throwEither c e = case e of
-  Left e -> throwIO e
-  Right v -> c v
 
 prepareAndRunMonitor ::
   Monitor ->
   (FilePath, FilePath, FilePath) ->
-  (FilePath -> FlagSh a) ->
-  FlagSh a
-prepareAndRunMonitor Monitor {..} (s, f, l) a = do
-  prepareMonitor s f $
-    throwEither $ \state ->
-      runMonitor state s f l (throwEither a)
+  FlagsResource FilePath
+prepareAndRunMonitor Monitor {..} (s, f, l) =
+  prepareMonitor s f >>= \case
+    Left _ -> throwIO PrepareMonitorFailed
+    Right state ->
+      runMonitor state s f l >>= \case
+        Left _ -> throwIO RunMonitorFailed
+        Right outf -> return outf
 
-prepareAndBenchmarkMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagSh Double
+prepareAndBenchmarkMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagsResource Double
 prepareAndBenchmarkMonitor Monitor {..} (s, f, l) = do
-  prepareMonitor s f $
-    throwEither $ \state ->
-      runBenchmark state s f l
+  prepareMonitor s f >>= \case
+    Left _ -> throwIO PrepareMonitorFailed
+    Right state -> runBenchmark state s f l
 
-verifyMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagSh ()
-verifyMonitor mon args =
-  prepareAndRunMonitor verimon args $ \monp_out ->
-    mapException @RunFailed (const VerificationFailed) $
-      prepareAndRunMonitor mon args $ \smon_out ->
-        run_ "diff" [toTextIgnore smon_out, toTextIgnore monp_out]
+prepareForVerification Monitor {..} (s, f, l) afail a =
+  prepareMonitor s f
+    >>= either
+      (afail . VerificationCrash)
+      ( \state ->
+          runMonitor state s f l
+            >>= either (afail . VerificationCrash) a
+      )
+
+verifyMonitor ::
+  (FilePath, FilePath, FilePath) ->
+  FlagsResource (Either VerificationFailure ())
+verifyMonitor args =
+  prepareForVerification verimon args aErr $ \vmon_out ->
+    prepareForVerification staticmon args aErr $ \smon_out ->
+      runKeep "diff" [vmon_out, smon_out] >>= \case
+        Left err -> aErr (VerificationFailed err)
+        Right _ -> return $ Right ()
+  where
+    aErr = return . Left
 
 monitors :: [Monitor]
 monitors = [monpoly, verimon, staticmon, cppmon]
 
 monpoly = Monitor {..}
   where
-    prepareMonitor _ _ c = c (Right ())
-    runBenchmark _ s f l = benchmarkMonpoly False s f l
-    runMonitor _ s f l a = monitorMonpoly a False s f l
+    prepareMonitor _ _ = return (Right ())
+    runBenchmark _ = benchmarkMonpoly False
+    runMonitor _ = monitorMonpoly False
     monitorName = "monpoly"
 
 verimon = Monitor {..}
   where
-    prepareMonitor _ _ c = c (Right ())
-    runBenchmark _ s f l = benchmarkMonpoly True s f l
-    runMonitor _ s f l a = monitorMonpoly a True s f l
+    prepareMonitor _ _ = return (Right ())
+    runBenchmark _ = benchmarkMonpoly True
+    runMonitor _ = monitorMonpoly True
     monitorName = "verimon"
 
 cppmon = Monitor {..}
   where
     opts s f l =
-      [ "--formula",
-        toTextIgnore f,
-        "--sig",
-        toTextIgnore s,
-        "--log",
-        toTextIgnore l
-      ]
-    prepareMonitor s f c =
-      runSaveOut "monpoly" ("-cppmon" : monpolyBaseOpts s f) c
+      ["--formula", f, "--sig", s, "--log", l]
+    prepareMonitor s f =
+      runKeep "monpoly" ("-cppmon" : monpolyBaseOpts s f)
     runBenchmark f s _ l =
-      runDiscard "cppmon" (opts s f l)
-        & time <&> fst
-    runMonitor f s _ l a =
-      runSaveOut "cppmon" (opts s f l) a
+      benchmark (runDiscard "cppmon" (opts s f l))
+    runMonitor f s _ l =
+      runKeep "cppmon" (opts s f l)
     monitorName = "cppmon"
 
 staticmon = Monitor {..}
   where
-    prepareMonitor s f c = do
+    prepareMonitor s f = do
       basedir <- RD.asks f_mon_path
       b <- RD.asks f_build_dir
       let header_dir = basedir </> "src" </> "staticmon" </> "input_formula"
-          opts = ["-explicitmon", "-explicitmon_prefix", toTextIgnore header_dir]
-          builddir = toTextIgnore $ basedir </> b
-      runMonpoly opts s f
-        >>= ( \case
-                Left e -> c (Left e)
-                _ -> do
-                  try (run_ "ninja" ["--quiet", "-C", builddir])
-                    >>= c . (const (builddir </> "bin" </> "staticmon") <$>)
-            )
+          opts = ["-explicitmon", "-explicitmon_prefix", header_dir]
+          builddir = basedir </> T.unpack b
+      runMonpoly opts s f >>= \case
+        Left err -> return $ Left err
+        Right _ ->
+          runKeep "ninja" ["--quiet", "-C", builddir] >>= \case
+            Left err -> return $ Left err
+            Right _ -> return $ Right (builddir </> "bin" </> "staticmon")
+
     runBenchmark exe _ _ l =
-      runDiscard exe ["--log", toTextIgnore l]
-        & time
-        <&> fst
-    runMonitor exe _ _ l a =
-      runSaveOut exe ["--log", toTextIgnore l] a
+      benchmark (runDiscard exe ["--log", l])
+    runMonitor exe _ _ l =
+      runKeep exe ["--log", l]
 
     monitorName = "staticmon"
 
-monpolyBaseOpts s f = ["-formula", toTextIgnore f, "-sig", toTextIgnore s]
+monpolyBaseOpts s f = ["-formula", f, "-sig", s]
 
-runSaveOut exe opts a =
-  withTmpDir $ \d ->
-    let outf = d <> "output"
-     in runPipe exe opts outf >>= a . (const outf <$>)
-
-monitorMonpoly a v s f l =
-  runSaveOut "monpoly" (opts ++ monpolyBaseOpts s f) a
+monitorMonpoly v s f l =
+  runKeep "monpoly" (opts ++ monpolyBaseOpts s f)
   where
-    opts = (["-verified" | v]) ++ ["-log", toTextIgnore l]
+    opts = (["-verified" | v]) ++ ["-log", l]
 
-benchmarkMonpoly v s f l =
-  runMonpoly opts s f & time <&> fst
+toSecsDouble = (/ 1e9) . fromInteger . toNanoSecs
+
+benchmark a1 = do
+  t0 <- liftIO $ getTime Monotonic
+  a1 >>= \case
+    Left _ -> error "benchmark failed"
+    Right _ -> do
+      liftIO (getTime Monotonic)
+        <&> toSecsDouble . (`diffTimeSpec` t0)
+
+benchmarkMonpoly v s f l = benchmark (runMonpoly opts s f)
   where
-    opts = (["-verified" | v]) ++ ["-log", toTextIgnore l]
+    opts = (["-verified" | v]) ++ ["-log", l]
 
 runMonpoly opts s f =
   runDiscard "monpoly" (opts ++ monpolyBaseOpts s f)
-
-runDiscard exe args = runPipe exe args "/dev/null"
-
-runPipe exe args outf =
-  try @_ @RunFailed $
-    runHandle exe (map toTextArg args) $ \out ->
-      liftIO $ LT.hGetContents out >>= LT.writeFile outf

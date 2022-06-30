@@ -1,45 +1,47 @@
 module TestRunner (runTests) where
 
-import Control.Monad (filterM)
+import Control.Monad (filterM, when)
 import Control.Monad.Reader qualified as RD
 import Data.Foldable (Foldable (foldl'))
-import Data.Foldable qualified as List
 import Data.Functor ((<&>))
 import Data.List qualified as List
-import Data.Maybe (fromJust)
-import Data.Semigroup ((<>))
 import Data.Text qualified as T
-import Data.Text.Read qualified as R
-import Flags (Bnd (..), Flags (..), Interval, NestedFlags (..))
-import Fmt ((+|), (|+), (|++|))
-import Monitors (staticmon, verifyMonitor)
-import Shelly.Helpers (FlagSh (..), shellyWithFlags)
-import Shelly.Lifted
+import Flags (Bnd (..), Flags (..), NestedFlags (..))
+import Fmt ((+|), (|+))
+import Monitors (verifyMonitor)
+import Process (echo, ls, test_d)
+import System.FilePath ((</>))
 import System.ProgressBar qualified as PG
+import UnliftIO (MonadIO (liftIO))
+import UnliftIO.Resource (runResourceT)
 
 default (T.Text)
 
-type BndInterval = (Int, Int)
+runTest pg i = do
+  monpath <- RD.asks f_mon_path
+  let testDir = monpath </> "experiments" </> "tests" </> show i
+  let args = (testDir </> "sig", testDir </> "fo", testDir </> "log")
+  runResourceT $
+    verifyMonitor args
+      >>= either
+        (const $ error $ "test " +| i |+ " failed")
+        ( const $
+            liftIO $ PG.incProgress pg 1
+        )
 
-runTest pg i =
-  chdir (show i) $ do
-    args <- (,,) <$> absPath "sig" <*> absPath "fo" <*> absPath "log"
-    verifyMonitor staticmon args
-    liftIO $ PG.incProgress pg 1
-
-runIntervalTest pg nfolders (lb, ub) =
+runIntervalTest pg (lb, ub) =
   mapM_ (runTest pg) [lb .. ub]
 
 runTests' = do
   monpath <- RD.asks f_mon_path
-  cd (monpath </> "experiments" </> "tests")
-  nfolders <- countFolders
+  let testDir = monpath </> "experiments" </> "tests"
+  nfolders <- countTests testDir
   when (nfolders == 0) $
-    errorExit "no test cases"
+    error "no test cases"
   ranges <- RD.ask <&> f_nes_flags <&> tf_ranges
   let intvs = map (translateInterval nfolders) ranges
   if intervalsOverlap intvs
-    then errorExit "overlapping intervals"
+    then error "overlapping intervals"
     else do
       echo "Running tests ..."
       let intvs_sum =
@@ -51,10 +53,10 @@ runTests' = do
               intvs
       pg <- liftIO $ setupProgresBar intvs_sum
       mapM_
-        (runIntervalTest pg nfolders)
+        (runIntervalTest pg)
         intvs
   where
-    countFolders = pwd >>= ls >>= filterM test_d <&> length
+    countTests d = ls d >>= filterM test_d <&> length
 
     barStyle =
       PG.defStyle
@@ -79,13 +81,10 @@ runTests' = do
             (\((_, a2), (b1, _)) -> b1 <= a2)
             (zip ls (tail ls))
 
-    translateBnd nfolders (Bounded b) = b
+    translateBnd _ (Bounded b) = b
     translateBnd nfolders Inf = nfolders - 1
 
     translateInterval nfolders (a, b) = (a, translateBnd nfolders b)
 
 runTests :: Flags -> IO ()
-runTests =
-  shelly
-    . tracing False
-    . shellyWithFlags runTests'
+runTests = RD.runReaderT runTests'

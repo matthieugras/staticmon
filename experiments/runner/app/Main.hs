@@ -10,6 +10,6 @@ main =
   parseFlags
     >>= ( \case
             f@(Flags (TestFlags _) _ _) -> runTests f
-            f@(Flags (RandomTestFlags _ _ _ _ _) _ _) -> runRandomTests f
+            f@(Flags RandomTestFlags {} _ _) -> runRandomTests f
             f -> runBenchmarks f
         )
