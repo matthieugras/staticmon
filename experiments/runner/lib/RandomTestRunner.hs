@@ -218,7 +218,7 @@ runRandomTestsWithOverlay = do
 
 runRandomTests' = do
   getLogDir >>= mkdir
-  cpus <- liftIO $ (`div` 1) <$> getNumProcessors
+  cpus <- liftIO $ (`div` 2) <$> getNumProcessors
   setNumCapabilities cpus
   replicateConcurrently_ cpus runRandomTestsWithOverlay
 
