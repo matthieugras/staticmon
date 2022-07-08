@@ -16,11 +16,9 @@ import Flags (Flags (..), NestedFlags (..))
 import Fmt ((+|), (|+))
 import GHC.Conc (getNumProcessors)
 import Monitors
-  ( Monitor (..),
-    VerificationFailure (..),
+  ( VerificationFailure (..),
     monpoly,
-    prepareMonitor,
-    runMonitor,
+    prepareAndRunMonitor,
     verifyMonitor,
   )
 import Process
@@ -28,6 +26,7 @@ import Process
     cp,
     cp_r,
     echoErr,
+    makeTmpDirIn,
     mkdir,
     rm_rf,
     run,
@@ -142,28 +141,31 @@ withGenerateLogAndFormula c =
   withGenerateFormula $ \s f -> withGeneratedLog s $ \l ->
     c s f l
 
+reportErrorWithGeneratedFormula outerr s f l = do
+  outdir <- getLogDir >>= makeTmpDirIn
+  mapM_ (`cp` outdir) [outerr, s, f, l]
+  withGlobLk $
+    echoErr $ "failed to run monpoly with generated formula, saved in: " +| outdir |+ ""
+  error "fatal error"
+
 withGoodFormula c =
   forUntil_ [1 .. iterlimit] $ \i -> do
     when (i == iterlimit) $
       error "didn't find good formula in 200 iters, change params"
-    withGenerateLogAndFormula $ \s f l ->
-      case monpoly of
-        Monitor {..} -> do
-          foundGoodFormula <-
-            withoutGlobLk . runResourceT $
-              prepareMonitor s f >>= \case
-                Left _ -> return False
-                Right state ->
-                  runMonitor state s f l >>= \case
-                    Left _ -> return False
-                    Right outf -> do
-                      sz <- liftIO . withFile outf ReadMode $ hFileSize
-                      if sz == 0
-                        then return False
-                        else return True
-          if foundGoodFormula
-            then c s f >> break ()
-            else continue ()
+    withGenerateLogAndFormula $ \s f l -> do
+      foundGoodFormula <-
+        runResourceT $
+          transFlagsResource (prepareAndRunMonitor monpoly (s, f, l)) >>= \case
+            Left outerr ->
+              RD.lift $ reportErrorWithGeneratedFormula outerr s f l
+            Right outf -> do
+              sz <- liftIO . withFile outf ReadMode $ hFileSize
+              if sz == 0
+                then return False
+                else return True
+      if foundGoodFormula
+        then c s f >> break ()
+        else continue ()
   where
     continue = const $ return False
     break = const $ return True

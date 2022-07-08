@@ -66,14 +66,14 @@ data Monitor = forall s.
 prepareAndRunMonitor ::
   Monitor ->
   (FilePath, FilePath, FilePath) ->
-  FlagsResource FilePath
+  FlagsResource (Either FilePath FilePath)
 prepareAndRunMonitor Monitor {..} (s, f, l) =
   prepareMonitor s f >>= \case
-    Left _ -> throwIO PrepareMonitorFailed
+    Left outerr -> return (Left outerr)
     Right state ->
       runMonitor state s f l >>= \case
-        Left _ -> throwIO RunMonitorFailed
-        Right outf -> return outf
+        Left outerr -> return (Left outerr)
+        Right outf -> return (Right outf)
 
 prepareAndBenchmarkMonitor :: Monitor -> (FilePath, FilePath, FilePath) -> FlagsResource Double
 prepareAndBenchmarkMonitor Monitor {..} (s, f, l) = do
@@ -153,7 +153,7 @@ staticmon = Monitor {..}
 
     monitorName = "staticmon"
 
-monpolyBaseOpts s f = ["-formula", f, "-sig", s]
+monpolyBaseOpts s f = ["-formula", f, "-sig", s, "-no_rw"]
 
 monitorMonpoly v s f l =
   runKeep "monpoly" (opts ++ monpolyBaseOpts s f)

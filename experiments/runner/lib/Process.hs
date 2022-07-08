@@ -19,6 +19,7 @@ module Process
     rm_rf,
     run,
     bash,
+    makeTmpDirIn,
   )
 where
 
