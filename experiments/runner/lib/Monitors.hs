@@ -142,7 +142,7 @@ staticmon = Monitor {..}
       runMonpoly opts s f >>= \case
         Left err -> return $ Left err
         Right _ ->
-          runKeep "ninja" ["--quiet", "-C", builddir] >>= \case
+          runKeep "ninja" ["-C", builddir] >>= \case
             Left err -> return $ Left err
             Right _ -> return $ Right (builddir </> "bin" </> "staticmon")
 

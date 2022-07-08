@@ -49,9 +49,7 @@ if(TEST_LLD AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
 endif()
 
 if(ENABLE_SANITIZERS)
-  find_library(ASAN asan)
-  find_library(UBSAN ubsan)
-  link_libraries(${ASAN} ${UBSAN})
+  add_link_options(-fsanitize=address,undefined)
   add_compile_options(-fsanitize=address,undefined)
 endif()
 
