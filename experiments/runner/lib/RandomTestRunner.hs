@@ -3,7 +3,7 @@ module RandomTestRunner (runRandomTests) where
 import Control.Applicative (liftA2)
 import Control.Concurrent.RLock qualified as Lk
 import Control.Monad (forM_, forever, void, when)
-import Control.Monad.Extra (whenM)
+import Control.Monad.Extra (ifM, whenM)
 import Control.Monad.Reader (withReaderT)
 import Control.Monad.Reader qualified as RD
 import Control.Monad.Trans (lift)
@@ -42,6 +42,7 @@ import System.IO
     withFile,
   )
 import System.Time.Extra (sleep)
+import Text.Regex.TDFA
 import UnliftIO (MonadIO (liftIO))
 import UnliftIO.Async (replicateConcurrently_)
 import UnliftIO.Concurrent (setNumCapabilities)
@@ -148,6 +149,10 @@ reportErrorWithGeneratedFormula outerr s f l = do
     echoErr $ "failed to run monpoly with generated formula, saved in: " +| outdir |+ ""
   error "fatal error"
 
+isIntervalError outerr = do
+  content <- liftIO $ T.readFile outerr
+  return (matchTest (makeRegex "Unsupported interval" :: Regex) content)
+
 withGoodFormula c =
   forUntil_ [1 .. iterlimit] $ \i -> do
     when (i == iterlimit) $
@@ -203,12 +208,17 @@ runSingleTest = do
         runResourceT $ do
           transFlagsResource (verifyMonitor (s, f, l)) >>= \case
             Right () -> return False
-            Left (VerificationFailed err) -> do
+            Left (VerificationFailed err) ->
               saveFailingTest s f l err False stoponerr
-              return True
-            Left (VerificationCrash err) -> do
-              saveFailingTest s f l err True stoponerr
-              return True
+                >> return True
+            Left (VerificationCrash err) ->
+              let nointverror =
+                    saveFailingTest s f l err True stoponerr
+                      >> return True
+               in ifM
+                    (isIntervalError err)
+                    (return True)
+                    nointverror
 
 runRandomTestsWithOverlay = do
   Flags {f_nes_flags = RandomTestFlags {..}, ..} <- getFlags
