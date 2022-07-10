@@ -24,3 +24,5 @@ experiments/runner/log
 experiments/runner/out.mfotl
 experiments/runner/out.sig
 experiments/runner/stderr
+experiments/runner/out.old.mfotl
+experiments/runner/out.old.sig

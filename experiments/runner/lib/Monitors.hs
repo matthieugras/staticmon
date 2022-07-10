@@ -90,15 +90,20 @@ prepareForVerification Monitor {..} (s, f, l) afail a =
             >>= either (afail . VerificationCrash) a
       )
 
+removeMaxTSLine out afail a =
+  runDiscard "sed" ["--in-place", "-e", "$ {/MaxTS/ d}", out]
+    >>= either (afail . VerificationCrash) a
+
 verifyMonitor ::
   (FilePath, FilePath, FilePath) ->
   FlagsResource (Either VerificationFailure ())
 verifyMonitor args =
   prepareForVerification verimon args aErr $ \vmon_out ->
-    prepareForVerification staticmon args aErr $ \smon_out ->
-      runKeep "diff" [vmon_out, smon_out] >>= \case
-        Left err -> aErr (VerificationFailed err)
-        Right _ -> return $ Right ()
+    removeMaxTSLine vmon_out aErr $ \_ ->
+      prepareForVerification staticmon args aErr $ \smon_out ->
+        runKeep "diff" [vmon_out, smon_out] >>= \case
+          Left err -> aErr (VerificationFailed err)
+          Right _ -> return $ Right ()
   where
     aErr = return . Left
 
