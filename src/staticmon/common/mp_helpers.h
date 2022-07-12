@@ -3,15 +3,30 @@
 #include <cstdint>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 using namespace boost::mp11;
+
+template<typename T>
+inline constexpr bool is_number_type =
+  std::is_same_v<T, std::int64_t> || std::is_same_v<T, double>;
 
 template<typename... T>
 using remove_cv_refs_t = mp_transform<std::remove_cvref_t, mp_list<T...>>;
 
 template<typename T1, typename T2>
 using mp_not_same = mp_not<std::is_same<T1, T2>>;
+
+template<typename L, typename V>
+struct mp_find_partial_impl {
+  using type = mp_find<L, V>;
+
+  static_assert(type::value < mp_size<L>::value, "index out of bounds");
+};
+
+template<typename L, typename V>
+using mp_find_partial = typename mp_find_partial_impl<L, V>::type;
 
 template<typename T, typename... Args>
 std::vector<std::remove_cvref_t<T>> make_vector(T &&fst_arg, Args &&...args) {

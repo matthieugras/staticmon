@@ -100,7 +100,7 @@ struct mequal<tcst<Cst1>, tcst<Cst2>> {
 };
 
 template<std::size_t var, typename Cst>
-struct mequal<tvar<mp_size_t<var>>, tcst<Cst>> {
+struct mequal<tvar<var>, tcst<Cst>> {
   static constexpr auto cst = Cst::value;
 
   using ResL = mp_list_c<std::size_t, var>;
@@ -112,5 +112,4 @@ struct mequal<tvar<mp_size_t<var>>, tcst<Cst>> {
 };
 
 template<std::size_t var, typename Cst>
-struct mequal<tcst<Cst>, tvar<mp_size_t<var>>>
-    : mequal<tvar<mp_size_t<var>>, tcst<Cst>> {};
+struct mequal<tcst<Cst>, tvar<var>> : mequal<tvar<var>, tcst<Cst>> {};

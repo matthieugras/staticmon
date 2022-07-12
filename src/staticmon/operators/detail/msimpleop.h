@@ -19,11 +19,11 @@ using f_res_l = typename F::template result_info<L, T>::ResL;
 template<typename L, typename VarL>
 using get_var_idx = mp_transform_q<mp_bind<mp_find, L, _1>, VarL>;
 
-template<typename... Vars>
+template<std::size_t... Vars>
 struct mexists {
   template<typename L, typename T>
   struct idx_computation {
-    using l_vars = mp_list<Vars...>;
+    using l_vars = mp_list_c<std::size_t, Vars...>;
     static_assert(!mp_empty<l_vars>::value,
                   "exists must bind at least one variable");
     static_assert(mp_all_of_q<l_vars, mp_bind<mp_contains, L, _1>>::value,
@@ -97,11 +97,11 @@ struct mandrel {
   }
 };
 
-template<typename ResVar, typename Term>
+template<std::size_t ResVar, typename Term>
 struct mandassign {
   template<typename L, typename T>
   struct result_info {
-    using ResL = mp_push_back<L, ResVar>;
+    using ResL = mp_push_back<L, mp_size_t<ResVar>>;
     using ResT = mp_push_back<T, t_res_t<L, T, Term>>;
   };
 

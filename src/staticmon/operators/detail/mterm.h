@@ -11,10 +11,10 @@ using namespace boost::mp11;
 template<typename L, typename T, typename Term>
 using t_res_t = typename Term::template ResT<L, T>;
 
-template<typename VarId>
+template<std::size_t VarId>
 struct tvar {
   template<typename L>
-  using var_idx = mp_find<L, VarId>;
+  using var_idx = mp_find<L, mp_size_t<VarId>>;
 
   template<typename L, typename T>
   using ResT = mp_at<T, var_idx<L>>;

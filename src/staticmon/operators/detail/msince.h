@@ -4,6 +4,7 @@
 #include <boost/mp11.hpp>
 #include <staticmon/common/mp_helpers.h>
 #include <staticmon/common/table.h>
+#include <staticmon/operators/detail/aggregations.h>
 #include <staticmon/operators/detail/binary_buffer.h>
 #include <staticmon/operators/detail/minterval.h>
 #include <staticmon/operators/detail/operator_types.h>
@@ -20,13 +21,54 @@ using table_buf = boost::container::devector<
 
 struct no_aggregation;
 
-template<typename SharedBase, typename TemporalAggregation, typename T2>
-struct aggregation_mixin {
-  static_assert(always_false_v<T2>, "not implemented");
+template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
+         typename GroupVars>
+struct agg_info {
+  static constexpr std::size_t res_var = ResVar;
+  static constexpr std::size_t agg_var = AggVar;
+  using agg_tag = AggTag;
+  using group_vars = GroupVars;
 };
 
-template<typename SharedBase, typename T2>
-struct aggregation_mixin<SharedBase, no_aggregation, T2> {
+template<typename SharedBase, typename AggInfo, typename L2, typename T2>
+struct aggregation_mixin {
+  using Aggregation =
+    mtemporalaggregation<L2, T2, AggInfo::res_var, typename AggInfo::agg_tag,
+                         AggInfo::agg_var, typename AggInfo::group_vars>;
+
+  auto produce_result() const { return agg_.finalize_table(false); }
+
+  void tuple_in_update(const T2 &e, size_t ts) {
+    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
+    if (tuple_in.insert_or_assign(e, ts).second)
+      return;
+  }
+
+  template<typename TupleInIt>
+  void tuple_in_erase(TupleInIt it) {
+    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
+    agg_.remove_row(it->second);
+    tuple_in.erase(it);
+  }
+
+  template<typename Pred>
+  void tuple_in_erase_if(Pred pred) {
+    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
+    absl::erase_if(tuple_in, [this, pred](const auto &e) {
+      if (pred(e)) {
+        agg_.remove_row(e);
+        return true;
+      } else {
+        return false;
+      }
+    });
+  }
+
+  Aggregation agg_;
+};
+
+template<typename SharedBase, typename L2, typename T2>
+struct aggregation_mixin<SharedBase, no_aggregation, L2, T2> {
   auto produce_result() const {
     const auto &tuple_in = static_cast<const SharedBase *>(this)->tuple_in;
     using res_tab_t = table_util::tab_t_of_row_t<T2>;
@@ -100,12 +142,11 @@ requires(
   tuple_buf_t all_data_counted;
 };
 
-template<typename TemporalAggregation, typename Interval, typename T2>
+template<typename AggInfo, typename Interval, typename L2, typename T2>
 struct base_mixin
-    : interval_bnd_mixin<base_mixin<TemporalAggregation, Interval, T2>,
-                         Interval, T2>,
-      aggregation_mixin<base_mixin<TemporalAggregation, Interval, T2>,
-                        TemporalAggregation, T2> {
+    : interval_bnd_mixin<base_mixin<AggInfo, Interval, L2, T2>, Interval, T2>,
+      aggregation_mixin<base_mixin<AggInfo, Interval, L2, T2>, AggInfo, L2,
+                        T2> {
 
   using table_buf_t = table_buf<T2>;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
@@ -156,14 +197,25 @@ struct base_mixin
   tuple_buf_t tuple_in, tuple_since;
 };
 
-template<bool left_negated, typename L1, typename L2, typename T1, typename T2,
-         typename TemporalAggregation, typename Interval>
-struct since_impl : base_mixin<TemporalAggregation, Interval, T2> {
+template<typename AggInfo, bool left_negated, typename Interval,
+         typename MFormula1, typename MFormula2>
+struct since_impl : base_mixin<AggInfo, Interval, typename MFormula2::ResL,
+                               typename MFormula2::ResT> {
+  using L1 = typename MFormula1::ResL;
+  using L2 = typename MFormula2::ResL;
+  using T1 = typename MFormula1::ResT;
+  using T2 = typename MFormula2::ResT;
+  using res_tab_t = table_util::tab_t_of_row_t<T2>;
+  using rec_tab1_t = table_util::tab_t_of_row_t<T1>;
+  using rec_tab2_t = table_util::tab_t_of_row_t<T2>;
+
+  using ResL = L2;
+  using ResT = T2;
   using tab1_t = table_util::tab_t_of_row_t<T1>;
   using tab2_t = table_util::tab_t_of_row_t<T2>;
   using project_idxs = table_util::comp_common_idx<L2, L1>;
 
-  tab2_t eval(tab1_t &tab1, tab2_t &tab2, std::size_t new_ts) {
+  tab2_t eval_tab(tab1_t &tab1, tab2_t &tab2, std::size_t new_ts) {
     this->add_new_ts(new_ts);
     this->join(tab1);
     this->add_new_table(tab2, new_ts);
@@ -181,68 +233,6 @@ struct since_impl : base_mixin<TemporalAggregation, Interval, T2> {
     absl::erase_if(this->tuple_since, erase_cond);
     this->tuple_in_erase_if(erase_cond);
   }
-};
-
-template<typename L2, typename T2, typename TemporalAggregation,
-         typename Interval>
-struct once_impl : base_mixin<TemporalAggregation, Interval, T2> {
-  using tab2_t = table_util::tab_t_of_row_t<T2>;
-
-  tab2_t eval(tab2_t &tab_r, std::size_t new_ts) {
-    this->add_new_ts(new_ts);
-    this->add_new_table(tab_r, new_ts);
-    return this->produce_result();
-  }
-};
-
-template<typename LBound, typename UBound, typename MFormula>
-struct monce {
-  using interval = minterval<LBound, UBound>;
-  using L2 = typename MFormula::ResL;
-  using T2 = typename MFormula::ResT;
-  using rec_tab_t = table_util::tab_t_of_row_t<T2>;
-
-  using ResL = L2;
-  using ResT = T2;
-
-  auto eval(database &db, const ts_list &ts) {
-    ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
-    auto rec_tabs = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
-                  "unexpected table type");
-    std::vector<rec_tab_t> res;
-    res.reserve(rec_tabs.size());
-    for (auto &tab : rec_tabs) {
-      assert(!ts_buf_.empty());
-      size_t new_ts = ts_buf_.front();
-      ts_buf_.pop_front();
-      auto ret = impl_.eval(tab, new_ts);
-      static_assert(std::is_same_v<decltype(ret), rec_tab_t>,
-                    "unexpected table type");
-      res.emplace_back(std::move(ret));
-    }
-    return res;
-  }
-
-  MFormula f_;
-  once_impl<L2, T2, no_aggregation, interval> impl_;
-  boost::container::devector<std::size_t> ts_buf_;
-};
-
-template<bool left_negated, typename LBound, typename UBound,
-         typename MFormula1, typename MFormula2>
-struct msince {
-  using interval = minterval<LBound, UBound>;
-  using L1 = typename MFormula1::ResL;
-  using L2 = typename MFormula2::ResL;
-  using T1 = typename MFormula1::ResT;
-  using T2 = typename MFormula2::ResT;
-  using res_tab_t = table_util::tab_t_of_row_t<T2>;
-  using rec_tab1_t = table_util::tab_t_of_row_t<T1>;
-  using rec_tab2_t = table_util::tab_t_of_row_t<T2>;
-
-  using ResL = L2;
-  using ResT = T2;
 
   auto eval(database &db, const ts_list &ts) {
     ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
@@ -256,12 +246,9 @@ struct msince {
     return bin_buf_.update_and_reduce(
       rec_res1, rec_res2, [this](rec_tab1_t &tab1, rec_tab2_t &tab2) {
         assert(!ts_buf_.empty());
-        size_t new_ts = ts_buf_.front();
-        // fmt::print("at ts:{}\nleft table:{}\nright table:{}\n\n", new_ts,
-        // tab1,
-        //            tab2);
+        std::size_t new_ts = ts_buf_.front();
         ts_buf_.pop_front();
-        auto ret = impl_.eval(tab1, tab2, new_ts);
+        auto ret = eval_tab(tab1, tab2, new_ts);
         static_assert(std::is_same_v<decltype(ret), rec_tab2_t>,
                       "unexpected table type");
         return ret;
@@ -270,7 +257,69 @@ struct msince {
 
   MFormula1 f1_;
   MFormula2 f2_;
-  since_impl<left_negated, L1, L2, T1, T2, no_aggregation, interval> impl_;
   bin_op_buffer<rec_tab1_t, rec_tab2_t> bin_buf_;
   boost::container::devector<std::size_t> ts_buf_;
 };
+
+template<typename AggInfo, typename Interval, typename MFormula>
+struct once_impl : base_mixin<AggInfo, Interval, typename MFormula::ResL,
+                              typename MFormula::ResT> {
+  using L2 = typename MFormula::ResL;
+  using T2 = typename MFormula::ResT;
+  using rec_tab_t = table_util::tab_t_of_row_t<T2>;
+  using tab2_t = table_util::tab_t_of_row_t<T2>;
+
+  using ResL = L2;
+  using ResT = T2;
+
+  tab2_t eval_tab(tab2_t &tab_r, std::size_t new_ts) {
+    this->add_new_ts(new_ts);
+    this->add_new_table(tab_r, new_ts);
+    return this->produce_result();
+  }
+
+  auto eval(database &db, const ts_list &ts) {
+    ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
+    auto rec_tabs = f_.eval(db, ts);
+    static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
+                  "unexpected table type");
+    std::vector<rec_tab_t> res;
+    res.reserve(rec_tabs.size());
+    for (auto &tab : rec_tabs) {
+      assert(!ts_buf_.empty());
+      size_t new_ts = ts_buf_.front();
+      ts_buf_.pop_front();
+      auto ret = eval_tab(tab, new_ts);
+      static_assert(std::is_same_v<decltype(ret), rec_tab_t>,
+                    "unexpected table type");
+      res.emplace_back(std::move(ret));
+    }
+    return res;
+  }
+
+  MFormula f_;
+  boost::container::devector<std::size_t> ts_buf_;
+};
+
+template<typename LBound, typename UBound, typename MFormula>
+struct monce : once_impl<no_aggregation, minterval<LBound, UBound>, MFormula> {
+};
+
+template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
+         typename GroupVars, typename AggInfo, typename LBound, typename UBound,
+         typename MFormula>
+struct monceagg : once_impl<agg_info<ResVar, AggTag, AggVar, GroupVars>,
+                            minterval<LBound, UBound>, MFormula> {};
+
+template<bool left_negated, typename LBound, typename UBound,
+         typename MFormula1, typename MFormula2>
+struct msince : since_impl<no_aggregation, left_negated,
+                           minterval<LBound, UBound>, MFormula1, MFormula2> {};
+
+template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
+         typename GroupVars, typename AggInfo, bool left_negated,
+         typename LBound, typename UBound, typename MFormula1,
+         typename MFormula2>
+struct msinceagg
+    : since_impl<agg_info<ResVar, AggTag, AggVar, GroupVars>, left_negated,
+                 minterval<LBound, UBound>, MFormula1, MFormula2> {};

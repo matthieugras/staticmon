@@ -21,7 +21,7 @@ struct monitor {
     std::vector<ResT> verdicts;
     verdicts.reserve(tab.size());
     for (auto &row : tab)
-      verdicts.emplace_back(project_row<reorder_mask>(row));
+      verdicts.emplace_back(project_row<reorder_mask>(std::move(row)));
     return verdicts;
   }
 
@@ -36,7 +36,7 @@ struct monitor {
     std::size_t new_curr_tp = curr_tp_;
     std::size_t n = sats.size();
     for (std::size_t i = 0; i < n; ++i, ++new_curr_tp) {
-      auto output_tab = make_verdicts(sats[i]);
+      auto output_tab = make_verdicts(std::move(sats[i]));
       auto it = tp_ts_map_.find(new_curr_tp);
       if (it->second < MAXIMUM_TIMESTAMP)
         printer_.print_verdict(it->second, new_curr_tp, output_tab);

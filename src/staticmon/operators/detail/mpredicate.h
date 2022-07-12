@@ -9,10 +9,10 @@
 
 using namespace boost::mp11;
 
-template<typename VarTy, typename VarId>
+template<typename VarTy, std::size_t VarId>
 struct pvar {
   using type = clean_monitor_cst_ty<VarTy>;
-  using var = VarId;
+  using var = mp_size_t<VarId>;
 };
 
 template<typename Cst>
@@ -22,7 +22,7 @@ struct pcst {
   using var = void;
 };
 
-template<typename PredId, typename... Args>
+template<std::size_t PredId, typename... Args>
 struct mpredicate {
   using pred_args = mp_list<Args...>;
   using n_args = mp_size<pred_args>;
@@ -61,7 +61,7 @@ struct mpredicate {
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     const auto &cdb = db;
-    auto it = cdb.find(PredId::value);
+    auto it = cdb.find(PredId);
     if (it == cdb.cend())
       return std::vector<res_tab_t>(ts.size());
     if constexpr (mp_empty<var_idxs>::value && mp_empty<cst_idxs>::value) {

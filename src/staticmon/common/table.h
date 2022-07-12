@@ -55,14 +55,14 @@ namespace detail {
   }
 
   template<typename Idxs, typename... Args>
-  auto make_anti_join_set(const table<Args...> &t) {
+  auto make_anti_join_set(table<Args...> &t) {
     using T = std::tuple<Args...>;
     using ResTuple = mp_apply_idxs<T, Idxs>;
     using AJoinSet = absl::flat_hash_set<ResTuple>;
     AJoinSet ajset;
     ajset.reserve(t.size());
     for (const auto &row : t)
-      ajset.emplace(project_row<Idxs>(row));
+      ajset.emplace(project_row<Idxs>(std::move(row)));
     return ajset;
   }
 
@@ -211,8 +211,8 @@ auto table_union(table<Args1...> &&tab1, table<Args2...> &tab2) {
     using reorder_mask = get_reorder_mask<L2, L1>;
     static_assert(std::is_same_v<mp_apply_idxs<T2, reorder_mask>, T1>,
                   "internal error, reorder mask incorrect");
-    for (const auto &row : tab2)
-      tab1.emplace(project_row<reorder_mask>(row));
+    for (auto &row : tab2)
+      tab1.emplace(project_row<reorder_mask>(std::move(row)));
   }
   return std::move(tab1);
 }
@@ -224,7 +224,7 @@ struct anti_join_info {
 };
 
 template<typename L1, typename L2, typename... Args1, typename... Args2>
-auto table_anti_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
+auto table_anti_join(const table<Args1...> &tab1, table<Args2...> &tab2) {
   using T1 = std::tuple<Args1...>;
   using T2 = std::tuple<Args2...>;
   using res_tab_t = table<Args1...>;
@@ -233,7 +233,7 @@ auto table_anti_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
                 "not a valid antijoin");
   using proj_mask1 = typename jinfo::l1_common;
   using proj_mask2 = typename jinfo::l2_common;
-  auto jset = detail::make_anti_join_set<proj_mask2>(tab2);
+  auto jset = detail::make_anti_join_set<proj_mask2>(std::move(tab2));
   res_tab_t res;
   for (const auto &row : tab1) {
     auto proj_r = project_row<proj_mask1>(row);
