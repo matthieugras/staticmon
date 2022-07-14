@@ -17,6 +17,19 @@ import UnliftIO.Resource (runResourceT)
 
 default (T.Text)
 
+-- printVerifyError i err =
+--   let (errout, msg) =
+--         let bmsg = "test " +| i |+ "failed because of "
+--          in case err of
+--               VerificationFailed err ->
+--                 (err, bmsg +| "differing outputs")
+--               VerificationCrash err ->
+--                 (err, bmsg +| "crash")
+--    in let msge = msg +| " output saved in $PWD/" +| takeFileName errout |+ ""
+--        in do
+--             cp errout "."
+--             error msge
+
 runTest pg i = do
   monpath <- RD.asks f_mon_path
   let testDir = monpath </> "experiments" </> "tests" </> show i

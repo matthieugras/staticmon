@@ -21,7 +21,9 @@ template<typename AggVarT>
 struct simple_combiner {
   using ResT = AggVarT;
 
-  simple_combiner(AggVarT &&first_event) : res_(std::forward(first_event)) {}
+  template<typename AggVarTU>
+  simple_combiner(AggVarTU &&first_event)
+      : res_(std::forward<AggVarTU>(first_event)) {}
 
   ResT finalize_group() const { return res_; }
 
@@ -35,23 +37,29 @@ struct agg_group {
 
 template<typename AggVarT>
 struct agg_group<max_agg_op, AggVarT> : simple_combiner<AggVarT> {
-  agg_group<max_agg_op, AggVarT>(AggVarT &&first_event)
-      : simple_combiner<AggVarT>(std::forward<AggVarT>(first_event)) {}
 
-  void add_event(AggVarT &&val) {
+  template<typename AggVarTU>
+  agg_group<max_agg_op, AggVarT>(AggVarTU &&first_event)
+      : simple_combiner<AggVarT>(std::forward<AggVarTU>(first_event)) {}
+
+  template<typename AggVarTU>
+  void add_event(AggVarTU &&val) {
     if (val > this->res_)
-      this->res_ = std::forward<AggVarT>(val);
+      this->res_ = std::forward<AggVarTU>(val);
   }
 };
 
 template<typename AggVarT>
 struct agg_group<min_agg_op, AggVarT> : simple_combiner<AggVarT> {
-  agg_group<min_agg_op, AggVarT>(AggVarT &&first_event)
-      : simple_combiner<AggVarT>(std::forward<AggVarT>(first_event)) {}
 
-  void add_event(const AggVarT &val) {
+  template<typename AggVarTU>
+  agg_group<min_agg_op, AggVarT>(AggVarTU &&first_event)
+      : simple_combiner<AggVarT>(std::forward<AggVarTU>(first_event)) {}
+
+  template<typename AggVarTU>
+  void add_event(AggVarTU &&val) {
     if (val < this->res_)
-      this->res_ = std::move(val);
+      this->res_ = std::forward<AggVarTU>(val);
   }
 };
 
@@ -70,9 +78,13 @@ template<typename AggVarT>
 struct agg_group<cnt_agg_op, AggVarT> {
   using ResT = std::int64_t;
 
-  agg_group<cnt_agg_op, AggVarT>(AggVarT &&) : counter_(1) {}
+  template<typename AggVarTU>
+  agg_group<cnt_agg_op, AggVarT>(AggVarTU &&) : counter_(1) {}
 
-  void add_event(AggVarT &&) { counter_++; }
+  template<typename AggVarTU>
+  void add_event(AggVarTU &&) {
+    counter_++;
+  }
 
   ResT finalize_group() const { return counter_; }
 
@@ -108,21 +120,27 @@ struct grouped_state {
   using ResT = mp_push_back<GroupVarT, ResVarT>;
   using res_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  void add_result(GroupVarT &&group, AggVarT &&val) {
+  template<typename GroupTypeU, typename AggVarTU>
+  void add_result(GroupTypeU &&group, AggVarTU &&val) {
     auto it = groups_.template find(group);
     if (it == groups_.end())
-      groups_.emplace(std::forward<GroupVarT>(group),
-                      GroupType(std::forward<AggVarT>(val)));
+      groups_.emplace(std::forward<GroupTypeU>(group),
+                      GroupType(std::forward<AggVarTU>(val)));
     else
-      it->second.add_event(std::forward<AggVarT>(val));
+      it->second.add_event(std::forward<AggVarTU>(val));
   }
 
-  res_tab_t finalize_table(bool clear_groups = true) {
+  template<bool clear_groups>
+  res_tab_t finalize_table() {
+    if constexpr (mp_empty<GroupVarT>::value) {
+      if (groups_.empty())
+        return table_util::singleton_table(ResVarT{});
+    }
     res_tab_t res;
-    for (auto &[group, group_state] : groups_)
-      res.add_row(std::tuple_cat(
+    for (const auto &[group, group_state] : groups_)
+      res.emplace(std::tuple_cat(
         group, std::forward_as_tuple(group_state.finalize_group())));
-    if (clear_groups)
+    if constexpr (clear_groups)
       groups_.clear();
     return res;
   }
@@ -131,15 +149,17 @@ struct grouped_state {
 };
 
 template<typename AggVarT, typename Compare>
-struct min_max_group {
+struct temporal_min_max_group {
   using ResT = AggVarT;
 
-  min_max_group(AggVarT &&first_event) {
-    group_state_.insert(std::forward<AggVarT>(first_event));
+  template<typename AggVarTU>
+  temporal_min_max_group(AggVarTU &&first_event) {
+    group_state_.emplace(std::forward<AggVarTU>(first_event));
   }
 
-  void add_event(AggVarT &&val) {
-    group_state_.insert(std::forward<AggVarT>(val));
+  template<typename AggVarTU>
+  void add_event(AggVarTU &&val) {
+    group_state_.emplace(std::forward<AggVarTU>(val));
   }
 
   void remove_event(const AggVarT &val) {
@@ -163,15 +183,20 @@ struct temporal_agg_group {
 
 template<typename AggVarT>
 struct temporal_agg_group<max_agg_op, AggVarT>
-    : min_max_group<AggVarT, std::greater<>> {};
+    : temporal_min_max_group<AggVarT, std::greater<>> {
+  using temporal_min_max_group<AggVarT, std::greater<>>::temporal_min_max_group;
+};
 
 template<typename AggVarT>
 struct temporal_agg_group<min_agg_op, AggVarT>
-    : min_max_group<AggVarT, std::less<>> {};
+    : temporal_min_max_group<AggVarT, std::less<>> {
+  using temporal_min_max_group<AggVarT, std::less<>>::temporal_min_max_group;
+};
 
 template<typename AggVarT>
 struct temporal_agg_group<sum_agg_op, AggVarT>
     : agg_group<sum_agg_op, AggVarT> {
+  using agg_group<sum_agg_op, AggVarT>::agg_group;
   void remove_event(const AggVarT &val) { this->res_ -= val; }
 };
 
@@ -180,14 +205,16 @@ struct counted_group {
   using GroupType = temporal_agg_group<AggTag, AggVarT>;
   using ResT = typename GroupType::ResT;
 
-  counted_group(AggVarT &&first_event)
-      : nested_group_(GroupType(std::forward<AggVarT>(first_event))),
+  template<typename AggVarTU>
+  counted_group(AggVarTU &&first_event)
+      : nested_group_(GroupType(std::forward<AggVarTU>(first_event))),
         counter_(1) {}
 
   bool empty() const { return counter_ == 0; }
 
-  void add_event(AggVarT &&val) {
-    nested_group_.add_event(std::forward<AggVarT>(val));
+  template<typename AggVarTU>
+  void add_event(AggVarTU &&val) {
+    nested_group_.add_event(std::forward<AggVarTU>(val));
     counter_++;
   }
 
@@ -208,6 +235,7 @@ struct counted_group {
 
 template<typename AggVarT>
 struct counted_group<cnt_agg_op, AggVarT> : agg_group<cnt_agg_op, AggVarT> {
+  using agg_group<cnt_agg_op, AggVarT>::agg_group;
 
   bool empty() const { return this->counter_ == 0; }
 
@@ -219,6 +247,7 @@ struct counted_group<cnt_agg_op, AggVarT> : agg_group<cnt_agg_op, AggVarT> {
 
 template<typename AggVarT>
 struct counted_group<avg_agg_op, AggVarT> : agg_group<avg_agg_op, AggVarT> {
+  using agg_group<avg_agg_op, AggVarT>::agg_group;
 
   bool empty() const { return this->counter_ == 0; }
 
@@ -231,7 +260,7 @@ struct counted_group<avg_agg_op, AggVarT> : agg_group<avg_agg_op, AggVarT> {
 
 template<typename GroupType, typename GroupVarT, typename AggVarT>
 struct temporal_grouped_state : grouped_state<GroupType, GroupVarT, AggVarT> {
-  void remove_result(const event &group, const AggVarT &val) {
+  void remove_result(const GroupVarT &group, const AggVarT &val) {
     auto it = this->groups_.find(group);
     assert(it != this->groups_.end());
     it->second.remove_event(val);
@@ -251,8 +280,8 @@ struct get_agg_info {
   using GroupType = mp_if_c<temporal_agg, counted_group<AggTag, AggVarT>,
                             agg_group<AggTag, AggVarT>>;
   using grouped_state_t =
-    mp_if_c<temporal_agg, temporal_grouped_state<AggTag, GroupVarT, AggVarT>,
-            grouped_state<AggTag, GroupVarT, AggVarT>>;
+    mp_if_c<temporal_agg, temporal_grouped_state<GroupType, GroupVarT, AggVarT>,
+            grouped_state<GroupType, GroupVarT, AggVarT>>;
 };
 
 template<bool temporal_agg, typename L, typename T, std::size_t ResVar,
@@ -272,13 +301,11 @@ struct aggregation_impl : get_agg_info<temporal_agg, L, T, ResVar, AggTag,
   using ResT = mp_push_back<GroupVarT, typename grouped_state_t::ResVarT>;
   using res_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  void add_row(T &row) {
-    if constexpr (is_number_type<AggVarT>) {
-      AggVarT agg_var = std::get<agg_var_idx>(row);
-      add_result(project_row<group_var_idxs>(row), agg_var);
-    } else {
-      add_result(project_row<group_var_idxs>(row), std::get<agg_var_idx>(row));
-    }
+  template<typename TU>
+  void add_row(TU &&row) {
+    auto &&agg_var = std::get<agg_var_idx::value>(row);
+    this->add_result(project_row<group_var_idxs>(std::move(row)),
+                     std::move(agg_var));
   }
 };
 
@@ -293,14 +320,16 @@ struct maggregation
                      ResVar, AggTag, AggVar, GroupVars>;
   using res_tab_t = table_util::tab_t_of_row_t<typename Base::ResT>;
 
-  auto eval(database &db, const ts_list &ts) {
+  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
     std::vector<res_tab_t> res;
     res.reserve(rec_tabs.size());
     for (auto &tab : rec_tabs) {
-      for (auto &row : tab)
-        add_row(row);
-      res.emplace_back(this->gstate_.finalize_table());
+      for (auto it = tab.cbegin(), last = tab.cend(); it != last;) {
+        auto node = tab.extract(it++);
+        this->add_row(node.value());
+      }
+      res.emplace_back(this->template finalize_table<true>());
     }
     return res;
   }
@@ -317,7 +346,7 @@ struct mtemporalaggregation
   using agg_var_idx = typename Base::agg_var_idx;
 
   void remove_row(const T &row) {
-    this->gstate_.remove_result(project_row<group_var_idxs>(row),
-                                std::get<agg_var_idx>(row));
+    this->remove_result(project_row<group_var_idxs>(row),
+                        std::get<agg_var_idx::value>(row));
   }
 };

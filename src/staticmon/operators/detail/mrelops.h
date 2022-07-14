@@ -7,12 +7,6 @@
 #include <tuple>
 #include <type_traits>
 
-inline auto unit_table() {
-  table_util::table<> tab;
-  tab.emplace();
-  return tab;
-}
-
 template<typename T>
 auto make_empty_tabs(std::size_t n) {
   using res_tab_t = table_util::tab_t_of_row_t<T>;
@@ -28,7 +22,7 @@ inline auto make_unit_tabs(std::size_t n) {
   std::vector<res_tab_t> res;
   res.reserve(n);
   for (std::size_t i = 0; i < n; ++i)
-    res.emplace_back(unit_table());
+    res.emplace_back(table_util::unit_table());
   return res;
 }
 
@@ -38,9 +32,8 @@ auto make_singleton_table(const T &val, std::size_t n) {
   std::vector<res_tab_t> res;
   res.reserve(n);
   for (std::size_t i = 0; i < n; ++i) {
-    res_tab_t tab;
-    tab.emplace(val);
-    res.emplace_back(std::move(tab));
+    T val_cp = val;
+    res.emplace_back(table_util::singleton_table(std::move(val_cp)));
   }
   return res;
 }
@@ -64,7 +57,7 @@ struct mneg {
     std::vector<table_util::table<>> res_tabs;
     for (const auto &tab : rec_tabs) {
       if (tab.empty())
-        res_tabs.emplace_back(unit_table());
+        res_tabs.emplace_back(table_util::unit_table());
       else
         res_tabs.emplace_back();
     }

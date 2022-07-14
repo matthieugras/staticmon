@@ -1,0 +1,1 @@
+x <- SUM a (P(a) SINCE[1,3] Q(a))

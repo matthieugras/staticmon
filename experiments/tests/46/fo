@@ -1,0 +1,1 @@
+x <- SUM a (P(a) SINCE[0,*) Q(a,b))
