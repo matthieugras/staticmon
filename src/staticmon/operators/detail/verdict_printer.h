@@ -53,7 +53,7 @@ struct fmt::formatter<output_row_fmt<double>, char> : trivial_parser {
   template<typename FormatContext>
   auto format [[maybe_unused]] (const output_row_fmt<double> &arg_wrapper,
                                 FormatContext &ctx) const -> decltype(auto) {
-    return fmt::format_to(ctx.out(), "{}", arg_wrapper.t);
+    return fmt::format_to(ctx.out(), "{:.5e}", arg_wrapper.t);
   }
 };
 
