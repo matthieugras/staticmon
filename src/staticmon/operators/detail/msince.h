@@ -1,5 +1,6 @@
 #pragma once
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <boost/container/devector.hpp>
 #include <boost/mp11.hpp>
 #include <staticmon/common/mp_helpers.h>
@@ -21,20 +22,40 @@ using table_buf = boost::container::devector<
 
 struct no_aggregation;
 
-template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
-         typename GroupVars>
-struct agg_info {
-  static constexpr std::size_t res_var = ResVar;
-  static constexpr std::size_t agg_var = AggVar;
-  using agg_tag = AggTag;
-  using group_vars = GroupVars;
+template<typename ResVar, typename AggTag, typename AggVar, typename GroupVars>
+struct agg_info;
+
+template<bool is_no_remove, typename AggInfo, typename L2, typename T2>
+struct aggregation_mixin {
+  static_assert(always_false_v<mp_list<mp_bool<is_no_remove>, AggInfo, L2, T2>>,
+                "invalid aggregation mixin");
 };
 
-template<typename SharedBase, typename AggInfo, typename L2, typename T2>
-struct aggregation_mixin {
-  using Aggregation =
-    mtemporalaggregation<L2, T2, AggInfo::res_var, typename AggInfo::agg_tag,
-                         AggInfo::agg_var, typename AggInfo::group_vars>;
+template<typename L2, typename T2, typename... AggVals>
+struct aggregation_mixin<true, agg_info<AggVals...>, L2, T2> {
+  using Aggregation = addonlyaggregation<L2, T2, AggVals...>;
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
+
+  using ResL = typename Aggregation::ResL;
+  using ResT = typename Aggregation::ResT;
+
+  auto produce_result() { return agg_.template finalize_table<false>(); }
+
+  void tuple_in_update(const T2 &e, size_t) {
+    if (rows_in_result.emplace(e).second) {
+      agg_.add_row(e);
+      return;
+    }
+  }
+
+  Aggregation agg_;
+  absl::flat_hash_set<T2> rows_in_result;
+};
+
+template<typename L2, typename T2, typename... AggVals>
+struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
+  using Aggregation = aggregationwithremove<L2, T2, AggVals...>;
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
 
   using ResL = typename Aggregation::ResL;
   using ResT = typename Aggregation::ResT;
@@ -42,25 +63,20 @@ struct aggregation_mixin {
   auto produce_result() { return agg_.template finalize_table<false>(); }
 
   void tuple_in_update(const T2 &e, size_t ts) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     if (tuple_in.insert_or_assign(e, ts).second) {
       agg_.add_row(e);
       return;
     }
   }
 
-  // TODO: This is only needed for __bounded__ temporal aggs
   template<typename TupleInIt>
   void tuple_in_erase(TupleInIt it) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     agg_.remove_row(it->first);
     tuple_in.erase(it);
   }
 
-  // TODO: This is only needed for Since
   template<typename Pred>
   void tuple_in_erase_if(Pred pred) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     absl::erase_if(tuple_in, [this, pred](const auto &tup) {
       if (pred(tup)) {
         agg_.remove_row(tup.first);
@@ -72,16 +88,17 @@ struct aggregation_mixin {
   }
 
   Aggregation agg_;
+  tuple_buf_t tuple_in;
 };
 
-template<typename SharedBase, typename L2, typename T2>
-struct aggregation_mixin<SharedBase, no_aggregation, L2, T2> {
+template<bool inf_intv, typename L2, typename T2>
+struct aggregation_mixin<inf_intv, no_aggregation, L2, T2> {
   using ResL = L2;
   using ResT = T2;
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
+  using res_tab_t = table_util::tab_t_of_row_t<T2>;
 
-  auto produce_result() {
-    const auto &tuple_in = static_cast<const SharedBase *>(this)->tuple_in;
-    using res_tab_t = table_util::tab_t_of_row_t<T2>;
+  res_tab_t produce_result() {
     res_tab_t tab;
     tab.reserve(tuple_in.size());
     for (auto it = tuple_in.cbegin(); it != tuple_in.cend(); ++it)
@@ -90,34 +107,42 @@ struct aggregation_mixin<SharedBase, no_aggregation, L2, T2> {
   }
 
   void tuple_in_update(const T2 &e, size_t ts) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     tuple_in.insert_or_assign(e, ts);
   }
 
   template<typename TupleInIt>
   void tuple_in_erase(TupleInIt it) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     tuple_in.erase(it);
   }
 
   template<typename Pred>
   void tuple_in_erase_if(Pred pred) {
-    auto &tuple_in = static_cast<SharedBase *>(this)->tuple_in;
     absl::erase_if(tuple_in, pred);
   }
+
+  tuple_buf_t tuple_in;
 };
 
-template<typename SharedBase, typename Interval, typename T2>
-struct interval_bnd_mixin {};
+template<bool is_once, typename AggInfo, typename Interval, typename L2,
+         typename T2>
+struct interval_bnd_mixin : aggregation_mixin<is_once, AggInfo, L2, T2> {
+  using table_buf_t = table_buf<T2>;
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
 
-template<typename SharedBase, typename Interval, typename T2>
-requires(
-  !Interval::is_infinite) struct interval_bnd_mixin<SharedBase, Interval, T2> {
+  table_buf_t data_prev;
+  tuple_buf_t tuple_since;
+};
+
+template<bool is_once, typename AggInfo, typename Interval, typename L2,
+         typename T2>
+requires(!Interval::is_infinite) struct interval_bnd_mixin<is_once, AggInfo,
+                                                           Interval, L2, T2>
+    : aggregation_mixin<false, AggInfo, L2, T2> {
+
   using table_buf_t = table_buf<T2>;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
 
   void drop_tuple_from_all_data(const T2 &e) {
-    auto &tuple_since = static_cast<SharedBase *>(this)->tuple_since;
     auto all_dat_it = all_data_counted.find(e);
     assert(all_dat_it != all_data_counted.end() && all_dat_it->second > 0);
     if ((--all_dat_it->second) == 0) {
@@ -127,7 +152,6 @@ requires(
   }
 
   void drop_too_old(std::size_t ts) {
-    auto *as_base = static_cast<SharedBase *>(this);
     for (; !data_in.empty(); data_in.pop_front()) {
       auto old_ts = data_in.front().first;
       assert(ts >= old_ts);
@@ -135,33 +159,28 @@ requires(
         break;
       auto &tab = data_in.front();
       for (const auto &e : tab.second) {
-        auto in_it = as_base->tuple_in.find(e);
-        if (in_it != as_base->tuple_in.end() && in_it->second == tab.first)
-          as_base->tuple_in_erase(in_it);
+        auto in_it = this->tuple_in.find(e);
+        if (in_it != this->tuple_in.end() && in_it->second == tab.first)
+          this->tuple_in_erase(in_it);
         drop_tuple_from_all_data(e);
       }
     }
-    for (; !as_base->data_prev.empty() &&
-           Interval::gt_upper(ts - as_base->data_prev.front().first);
-         as_base->data_prev.pop_front()) {
-      for (const auto &e : as_base->data_prev.front().second)
+    for (;
+         !data_prev.empty() && Interval::gt_upper(ts - data_prev.front().first);
+         data_prev.pop_front()) {
+      for (const auto &e : data_prev.front().second)
         drop_tuple_from_all_data(e);
     }
   }
-  table_buf_t data_in;
-  tuple_buf_t all_data_counted;
+
+  table_buf_t data_prev, data_in;
+  tuple_buf_t all_data_counted, tuple_since;
 };
 
-template<typename AggInfo, typename Interval, typename L2, typename T2>
-struct base_mixin
-    : interval_bnd_mixin<base_mixin<AggInfo, Interval, L2, T2>, Interval, T2>,
-      aggregation_mixin<base_mixin<AggInfo, Interval, L2, T2>, AggInfo, L2,
-                        T2> {
-  using AggBase =
-    aggregation_mixin<base_mixin<AggInfo, Interval, L2, T2>, AggInfo, L2, T2>;
-  using ResL = typename AggBase::ResL;
-  using ResT = typename AggBase::ResT;
-
+template<bool is_once, typename AggInfo, typename Interval, typename L2,
+         typename T2>
+struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
+  using Base = typename base_mixin::interval_bnd_mixin;
   using table_buf_t = table_buf<T2>;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
   using tab2_t = table_util::tab_t_of_row_t<T2>;
@@ -170,15 +189,15 @@ struct base_mixin
     if constexpr (!Interval::is_infinite)
       this->drop_too_old(ts);
 
-    for (; !data_prev.empty(); data_prev.pop_front()) {
-      auto &latest = data_prev.front();
+    for (; !this->data_prev.empty(); this->data_prev.pop_front()) {
+      auto &latest = this->data_prev.front();
       size_t old_ts = latest.first;
       assert(old_ts <= ts);
       if (Interval::lt_lower(ts - old_ts))
         break;
       for (const auto &e : latest.second) {
-        auto since_it = tuple_since.find(e);
-        if (since_it != tuple_since.end() && since_it->second <= old_ts)
+        auto since_it = this->tuple_since.find(e);
+        if (since_it != this->tuple_since.end() && since_it->second <= old_ts)
           this->tuple_in_update(e, old_ts);
       }
       if constexpr (!Interval::is_infinite) {
@@ -190,7 +209,7 @@ struct base_mixin
 
   void add_new_table(tab2_t &tab_r, std::size_t ts) {
     for (const auto &e : tab_r) {
-      tuple_since.try_emplace(e, ts);
+      this->tuple_since.try_emplace(e, ts);
       if constexpr (!Interval::is_infinite)
         this->all_data_counted[e]++;
     }
@@ -202,21 +221,18 @@ struct base_mixin
         this->data_in.emplace_back(ts, std::move(tab_r));
       }
     } else {
-      assert(data_prev.empty() || ts >= data_prev.back().first);
-      data_prev.emplace_back(ts, std::move(tab_r));
+      assert(this->data_prev.empty() || ts >= this->data_prev.back().first);
+      this->data_prev.emplace_back(ts, std::move(tab_r));
     }
   }
-
-  table_buf_t data_prev;
-  tuple_buf_t tuple_in, tuple_since;
 };
 
 template<typename AggInfo, bool left_negated, typename Interval,
          typename MFormula1, typename MFormula2>
-struct since_impl : base_mixin<AggInfo, Interval, typename MFormula2::ResL,
-                               typename MFormula2::ResT> {
-  using Base = base_mixin<AggInfo, Interval, typename MFormula2::ResL,
-                          typename MFormula2::ResT>;
+struct since_impl
+    : base_mixin<false, AggInfo, Interval, typename MFormula2::ResL,
+                 typename MFormula2::ResT> {
+  using Base = typename since_impl::base_mixin;
 
   using L1 = typename MFormula1::ResL;
   using L2 = typename MFormula2::ResL;
@@ -276,10 +292,9 @@ struct since_impl : base_mixin<AggInfo, Interval, typename MFormula2::ResL,
 };
 
 template<typename AggInfo, typename Interval, typename MFormula>
-struct once_impl : base_mixin<AggInfo, Interval, typename MFormula::ResL,
+struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
                               typename MFormula::ResT> {
-  using Base = base_mixin<AggInfo, Interval, typename MFormula::ResL,
-                          typename MFormula::ResT>;
+  using Base = typename once_impl::base_mixin;
 
   using L2 = typename MFormula::ResL;
   using T2 = typename MFormula::ResT;
@@ -326,8 +341,10 @@ struct monce : once_impl<no_aggregation, minterval<LBound, UBound>, MFormula> {
 template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
          typename GroupVars, typename LBound, typename UBound,
          typename MFormula>
-struct monceagg : once_impl<agg_info<ResVar, AggTag, AggVar, GroupVars>,
-                            minterval<LBound, UBound>, MFormula> {};
+struct monceagg
+    : once_impl<
+        agg_info<mp_size_t<ResVar>, AggTag, mp_size_t<AggVar>, GroupVars>,
+        minterval<LBound, UBound>, MFormula> {};
 
 template<bool left_negated, typename LBound, typename UBound,
          typename MFormula1, typename MFormula2>
@@ -338,5 +355,6 @@ template<std::size_t ResVar, typename AggTag, std::size_t AggVar,
          typename GroupVars, bool left_negated, typename LBound,
          typename UBound, typename MFormula1, typename MFormula2>
 struct msinceagg
-    : since_impl<agg_info<ResVar, AggTag, AggVar, GroupVars>, left_negated,
-                 minterval<LBound, UBound>, MFormula1, MFormula2> {};
+    : since_impl<
+        agg_info<mp_size_t<ResVar>, AggTag, mp_size_t<AggVar>, GroupVars>,
+        left_negated, minterval<LBound, UBound>, MFormula1, MFormula2> {};
