@@ -4,6 +4,7 @@
 #include <staticmon/operators/detail/mpredicate.h>
 #include <staticmon/operators/detail/msimpleop.h>
 #include <staticmon/operators/detail/msince.h>
+#include <staticmon/operators/detail/muntil.h>
 #include <staticmon/operators/detail/mterm.h>
 #include <staticmon/operators/detail/operator_types.h>
 #include <staticmon/operators/detail/unary_temp_ops.h>

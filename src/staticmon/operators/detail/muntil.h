@@ -30,7 +30,7 @@ struct until_base {
     t2_tab_t res_tab;
     res_tab.reserve(mapping.size());
     for (const auto &entry : mapping)
-      res_tab.add_row(entry.first);
+      res_tab.emplace(entry.first);
     return res_tab;
   }
 
@@ -79,14 +79,14 @@ struct until_base {
 
   std::size_t fst_tp_ = 0, curr_tp_ = 0;
   ts_buf_t ts_buf_;
-  a2_map_t a2_map_;
+  a2_map_t a2_map_ = {{}};
   std::vector<t2_tab_t> res_acc_;
 };
 
 template<bool left_negated, typename L1, typename L2, typename T1, typename T2,
          typename Interval>
 struct until_impl : until_base<L2, T2, Interval> {
-  using Base = until_base<L2, T2, Interval>;
+  using Base = typename until_impl::until_base;
   using t1_tab_t = table_util::tab_t_of_row_t<T1>;
   using t2_tab_t = typename Base::t2_tab_t;
   using a1_map_t = absl::flat_hash_map<T1, std::size_t>;
@@ -94,67 +94,61 @@ struct until_impl : until_base<L2, T2, Interval> {
   static constexpr bool contains_zero = Interval::contains(0);
 
   void add_tables(t1_tab_t &tab_l, t2_tab_t &tab_r, std::size_t new_ts) {
-    auto *as_base = static_cast<Base *>(this);
-    auto &ts_buf = as_base->ts_buf_;
+    auto &ts_buf = this->ts_buf_;
     assert(ts_buf.empty() || new_ts >= ts_buf.back());
-    as_base->shift(new_ts);
+    this->shift(new_ts);
     update_a2_map(new_ts, tab_r);
     update_a1_map(tab_l);
     ts_buf.push_back(new_ts);
-    as_base->curr_tp_++;
+    this->curr_tp_++;
   }
 
   void update_a2_map(std::size_t new_ts, const t2_tab_t &tab_r) {
-    auto *as_base = static_cast<Base *>(this);
     std::size_t new_ts_tp;
     if constexpr (contains_zero)
-      new_ts_tp = as_base->curr_tp_;
+      new_ts_tp = this->curr_tp_;
     else
       new_ts_tp = new_ts - std::min((Interval::lower() - 1), new_ts);
-    assert(as_base->curr_tp_ >= as_base->ts_buf_.size());
-    if (tab_r) {
-      for (const auto &e : *tab_r) {
-        if constexpr (contains_zero) {
-          assert(!as_base->a2_map_.empty());
-          as_base->update_a2_inner_map(as_base->a2_map_.size() - 1, e,
-                                       new_ts_tp);
-        }
-        const auto a1_it = a1_map_.find(project_row<l2_common>(e));
-        std::size_t override_idx;
-        if (a1_it == a1_map_.end()) {
-          if constexpr (left_negated)
-            override_idx = 0;
-          else
-            continue;
-        } else {
-          if constexpr (left_negated)
-            override_idx = a1_it->second + 1 <= as_base->fst_tp_
-                             ? 0
-                             : a1_it->second + 1 - as_base->fst_tp_;
-          else
-            override_idx = a1_it->second <= as_base->fst_tp_
-                             ? 0
-                             : a1_it->second - as_base->fst_tp_;
-        }
-        as_base->update_a2_inner_map(override_idx, e, new_ts_tp);
+    assert(this->curr_tp_ >= this->ts_buf_.size());
+    for (const auto &e : tab_r) {
+      if constexpr (contains_zero) {
+        assert(!this->a2_map_.empty());
+        this->update_a2_inner_map(this->a2_map_.size() - 1, e, new_ts_tp);
       }
+      const auto a1_it = a1_map_.find(project_row<l2_common>(e));
+      std::size_t override_idx;
+      if (a1_it == a1_map_.end()) {
+        if constexpr (left_negated)
+          override_idx = 0;
+        else
+          continue;
+      } else {
+        if constexpr (left_negated)
+          override_idx = a1_it->second + 1 <= this->fst_tp_
+                           ? 0
+                           : a1_it->second + 1 - this->fst_tp_;
+        else
+          override_idx =
+            a1_it->second <= this->fst_tp_ ? 0 : a1_it->second - this->fst_tp_;
+      }
+      this->update_a2_inner_map(override_idx, e, new_ts_tp);
     }
-    as_base->a2_map_.emplace_back();
+    this->a2_map_.emplace_back();
   }
+
   void update_a1_map(const t1_tab_t &tab_l) {
-    auto *as_base = static_cast<Base *>(this);
     if constexpr (left_negated) {
-      for (const auto &e : *tab_l)
-        a1_map_.insert_or_assign(e, as_base->curr_tp_);
+      for (const auto &e : tab_l)
+        a1_map_.insert_or_assign(e, this->curr_tp_);
     } else {
       auto erase_cond = [&tab_l](const auto &entry) {
-        return !tab_l->contains(entry.first);
+        return !tab_l.contains(entry.first);
       };
       absl::erase_if(a1_map_, erase_cond);
-      for (const auto &e : *tab_l) {
+      for (const auto &e : tab_l) {
         if (a1_map_.contains(e))
           continue;
-        a1_map_.emplace(e, as_base->curr_tp_);
+        a1_map_.emplace(e, this->curr_tp_);
       }
     }
   }
@@ -165,34 +159,32 @@ struct until_impl : until_base<L2, T2, Interval> {
 
 template<typename L2, typename T2, typename Interval>
 struct eventually_impl : until_base<L2, T2, Interval> {
-  using Base = until_base<L2, T2, Interval>;
+  using Base = typename eventually_impl::until_base;
   using t2_tab_t = typename Base::t2_tab_t;
   static constexpr bool contains_zero = Interval::contains(0);
 
   void add_right_table(t2_tab_t &tab_r, std::size_t new_ts) {
-    auto *as_base = static_cast<Base *>(this);
-    assert(as_base->ts_buf_.empty() || new_ts >= as_base->ts_buf_.back());
-    as_base->shift(new_ts);
+    assert(this->ts_buf_.empty() || new_ts >= this->ts_buf_.back());
+    this->shift(new_ts);
     update_a2_map(new_ts, tab_r);
-    as_base->ts_buf_.push_back(new_ts);
-    as_base->curr_tp_++;
+    this->ts_buf_.push_back(new_ts);
+    this->curr_tp_++;
   }
 
   void update_a2_map(std::size_t new_ts, const t2_tab_t &tab_r) {
-    auto *as_base = static_cast<Base *>(this);
     size_t new_ts_tp;
     if constexpr (contains_zero)
-      new_ts_tp = as_base->curr_tp_;
+      new_ts_tp = this->curr_tp_;
     else
       new_ts_tp = new_ts - std::min((Interval::lower() - 1), new_ts);
-    assert(as_base->curr_tp_ >= as_base->ts_buf_.size());
-    for (const auto &e : *tab_r) {
-      assert(!as_base->a2_map_.empty());
+    assert(this->curr_tp_ >= this->ts_buf_.size());
+    for (const auto &e : tab_r) {
+      assert(!this->a2_map_.empty());
       if (contains_zero)
-        as_base->update_a2_inner_map(as_base->a2_map_.size() - 1, e, new_ts_tp);
-      as_base->update_a2_inner_map(0, e, new_ts_tp);
+        this->update_a2_inner_map(this->a2_map_.size() - 1, e, new_ts_tp);
+      this->update_a2_inner_map(0, e, new_ts_tp);
     }
-    as_base->a2_map_.emplace_back();
+    this->a2_map_.emplace_back();
   }
 };
 
@@ -208,7 +200,7 @@ struct meventually {
 
   auto eval(database &db, const ts_list &ts) {
     ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
-    auto rec_tabs = f_->eval(db, ts);
+    auto rec_tabs = f_.eval(db, ts);
     std::vector<res_tab_t> res_tabs;
     res_tabs.reserve(rec_tabs.size());
     for (auto &tab : rec_tabs) {
