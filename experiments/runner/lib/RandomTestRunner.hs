@@ -122,7 +122,7 @@ withGenerateFormula c =
         s = d </> "out.sig"
         base = d </> "out"
      in runResourceT
-          ( run "gen_fma" ["-output", base, "-past_only", "-size", "3"] >>= \case
+          ( run "gen_fma" ["-output", base, "-size", "4", "-aggr"] >>= \case
               Left outerr -> do
                 newname <- RD.lift $ copyErrorToLogdir outerr
                 RD.lift . withGlobLk $
