@@ -90,7 +90,7 @@ struct until_impl : until_base<L2, T2, Interval> {
   using t1_tab_t = table_util::tab_t_of_row_t<T1>;
   using t2_tab_t = typename Base::t2_tab_t;
   using a1_map_t = absl::flat_hash_map<T1, std::size_t>;
-  using l2_common = typename table_util::join_info<L1, L2, T1, T2>::l2_common;
+  using project_idxs = table_util::comp_common_idx<L2, L1>;
   static constexpr bool contains_zero = Interval::contains(0);
 
   void add_tables(t1_tab_t &tab_l, t2_tab_t &tab_r, std::size_t new_ts) {
@@ -115,7 +115,7 @@ struct until_impl : until_base<L2, T2, Interval> {
         assert(!this->a2_map_.empty());
         this->update_a2_inner_map(this->a2_map_.size() - 1, e, new_ts_tp);
       }
-      const auto a1_it = a1_map_.find(project_row<l2_common>(e));
+      auto a1_it = a1_map_.find(project_row<project_idxs>(e));
       std::size_t override_idx;
       if (a1_it == a1_map_.end()) {
         if constexpr (left_negated)
