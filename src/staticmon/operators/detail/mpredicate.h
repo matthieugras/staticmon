@@ -62,23 +62,19 @@ struct mpredicate {
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     const auto &cdb = db;
     auto it = cdb.find(PredId);
-    if (it == cdb.cend())
+    if (it == cdb.end())
       return std::vector<res_tab_t>(ts.size());
-    if constexpr (mp_empty<var_idxs>::value && mp_empty<cst_idxs>::value) {
-      return std::vector<res_tab_t>(ts.size(), res_tab_t({ResT()}));
-    } else {
-      std::vector<res_tab_t> res;
-      res.reserve(ts.size());
-      const auto &evll = it->second;
-      for (const auto &evl : evll) {
-        res_tab_t tab;
-        for (const auto &ev : evl) {
-          if (sat_constraint(ev, cst_tys{}, cst_idxs{}, csts{}))
-            tab.emplace(project_event_vars(ev, ResT{}, var_idxs{}));
-        }
-        res.emplace_back(std::move(tab));
+    std::vector<res_tab_t> res;
+    res.reserve(ts.size());
+    const auto &evll = it->second;
+    for (const auto &evl : evll) {
+      res_tab_t tab;
+      for (const auto &ev : evl) {
+        if (sat_constraint(ev, cst_tys{}, cst_idxs{}, csts{}))
+          tab.emplace(project_event_vars(ev, ResT{}, var_idxs{}));
       }
-      return res;
+      res.emplace_back(std::move(tab));
     }
+    return res;
   }
 };

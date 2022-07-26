@@ -15,14 +15,6 @@ struct mlet {
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     auto l_tabs = f1_.eval(db, ts);
-
-    std::optional<database::mapped_type> old_db_ent;
-    auto matching_idx = db.find(pred_id);
-    if (matching_idx != db.end()) {
-      old_db_ent.emplace(std::move(matching_idx->second));
-      db.erase(matching_idx);
-    }
-
     database::mapped_type db_ent;
     const size_t n_l_tabs = l_tabs.size();
     db_ent.reserve(n_l_tabs);
@@ -31,13 +23,13 @@ struct mlet {
       new_tab.reserve(l_tab.size());
       for (const auto &e : l_tab)
         new_tab.emplace_back(event_from_tuple(project_row<reorder_mask>(e)));
+
       db_ent.emplace_back(std::move(new_tab));
     }
-    db.emplace(pred_id, std::move(db_ent));
+    bool did_emplace = db.emplace(pred_id, std::move(db_ent)).second;
+    assert(did_emplace);
     auto res = f2_.eval(db, ts);
     db.erase(pred_id);
-    if (old_db_ent)
-      db.emplace(pred_id, std::move(old_db_ent.value()));
     return res;
   }
 
