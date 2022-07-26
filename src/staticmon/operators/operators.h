@@ -11,3 +11,4 @@
 #include <staticmon/operators/detail/verdict_printer.h>
 #include <staticmon/operators/detail/mrelops.h>
 #include <staticmon/operators/detail/aggregations.h>
+#include <staticmon/operators/detail/mlet.h>

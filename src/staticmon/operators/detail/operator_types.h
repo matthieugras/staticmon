@@ -5,6 +5,7 @@
 #include <staticmon/common/mp_helpers.h>
 #include <staticmon/common/util.h>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <variant>
 
@@ -38,3 +39,21 @@ struct fmt::formatter<std::variant<Args...>, char> : trivial_parser {
     return std::visit(visit_fn, arg);
   }
 };
+
+template<typename T>
+event_data event_data_from_value(T &&val) {
+  return event_data(std::in_place_type<T>, std::forward<T>(val));
+};
+
+template<typename Tup>
+event event_from_tuple(Tup &&t) {
+  return std::apply(
+    []<typename... T>(T &&...vals) {
+      if constexpr (sizeof...(vals) == 0) {
+        return event();
+      } else {
+        return make_vector(event_data_from_value(std::forward<T>(vals))...);
+      }
+    },
+    std::forward<Tup>(t));
+}

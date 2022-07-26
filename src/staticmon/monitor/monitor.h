@@ -5,6 +5,7 @@
 #include <staticmon/operators/operators.h>
 #include <type_traits>
 #include <vector>
+#include <cstdint>
 
 inline constexpr size_t MAXIMUM_TIMESTAMP = std::numeric_limits<size_t>::max();
 
@@ -47,7 +48,7 @@ struct monitor {
 
   void last_step() {
     database db;
-    step(db, make_vector(static_cast<size_t>(MAXIMUM_TIMESTAMP)));
+    step(db, make_vector(static_cast<std::size_t>(MAXIMUM_TIMESTAMP)));
   }
 
   input_formula f_;
