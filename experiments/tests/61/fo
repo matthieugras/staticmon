@@ -1,0 +1,1 @@
+LET P(c,a,b,d) = (P(c, b) AND Q(d, a)) IN P(d,b,a,c)

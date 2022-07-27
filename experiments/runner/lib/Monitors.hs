@@ -158,7 +158,7 @@ staticmon = Monitor {..}
 
     monitorName = "staticmon"
 
-monpolyBaseOpts s f = ["-formula", f, "-sig", s, "-no_rw"]
+monpolyBaseOpts s f = ["-formula", f, "-sig", s, "-no_rw", "-nofilteremptytp"]
 
 monitorMonpoly v s f l =
   runKeep "monpoly" (opts ++ monpolyBaseOpts s f)

@@ -1,0 +1,1 @@
+LET tp(i) = tp(i) IN (tp(i) AND tpts(i2, i2) AND ts(i2))

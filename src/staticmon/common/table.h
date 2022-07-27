@@ -18,7 +18,10 @@ using namespace boost::mp11;
 template<typename... Args>
 using table = absl::flat_hash_set<std::tuple<Args...>>;
 
-inline auto unit_table() {
+template<typename T>
+using tab_t_of_row_t = mp_rename<T, table>;
+
+inline table<> unit_table() {
   table_util::table<> tab;
   tab.emplace();
   return tab;
@@ -31,8 +34,12 @@ table<T> singleton_table(T &&val) {
   return tab;
 }
 
-template<typename T>
-using tab_t_of_row_t = mp_rename<T, table>;
+template<typename Row>
+tab_t_of_row_t<Row> single_row_table(Row &&r) {
+  tab_t_of_row_t<Row> tab;
+  tab.emplace(std::forward<Row>(r));
+  return tab;
+}
 
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info;
