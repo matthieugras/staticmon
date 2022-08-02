@@ -98,7 +98,7 @@ verifyMonitor ::
   (FilePath, FilePath, FilePath) ->
   FlagsResource (Either VerificationFailure ())
 verifyMonitor args =
-  prepareForVerification monpoly args aErr $ \vmon_out ->
+  prepareForVerification verimon args aErr $ \vmon_out ->
     removeMaxTSLine vmon_out aErr $ \_ ->
       prepareForVerification staticmon args aErr $ \smon_out ->
         runKeep "diff" [vmon_out, smon_out] >>= \case
