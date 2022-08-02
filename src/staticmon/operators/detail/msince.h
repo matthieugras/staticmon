@@ -190,6 +190,15 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
     ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
   }
 
+  bool maybe_add_new_ts() {
+    if (ts_buf_.empty()) {
+      return false;
+    } else {
+      add_new_ts();
+      return true;
+    }
+  }
+
   void add_new_ts() {
     assert(!ts_buf_.empty());
     std::size_t ts = ts_buf_.front();
@@ -358,8 +367,7 @@ struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
     }
     if constexpr (Interval::contains(0))
       return res;
-    if (!skew_) {
-      this->add_new_ts();
+    if (!skew_ && this->maybe_add_new_ts()) {
       res.emplace_back(this->produce_result());
       skew_ = true;
     }
