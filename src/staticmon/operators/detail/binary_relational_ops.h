@@ -3,8 +3,6 @@
 #include <boost/mp11.hpp>
 #include <cassert>
 #include <cstdint>
-#include <fmt/format.h>
-#include <fmt/ranges.h>
 #include <iterator>
 #include <staticmon/common/table.h>
 #include <staticmon/operators/detail/binary_buffer.h>

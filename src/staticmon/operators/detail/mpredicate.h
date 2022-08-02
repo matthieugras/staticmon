@@ -195,12 +195,13 @@ struct mpredicate {
   }
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+    std::size_t n = ts.size();
     const auto &cdb = db;
     auto it = cdb.find(PredId);
     if (it == cdb.end())
-      return std::vector<res_tab_t>(ts.size());
+      return std::vector<res_tab_t>(n);
     std::vector<res_tab_t> res;
-    res.reserve(ts.size());
+    res.reserve(n);
     const auto &evll = it->second;
     for (const auto &evl : evll) {
       res_tab_t tab;
