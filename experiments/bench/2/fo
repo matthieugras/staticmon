@@ -1,0 +1,1 @@
+EXISTS y. (A(x, y) AND (x >= 1) AND (x <= 10) AND (z = y))

@@ -1,5 +1,6 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Use second" #-}
 
 module EventGenerators (getGenerator, generateRandomLog) where
@@ -8,6 +9,8 @@ import Control.Monad (forM_, replicateM, replicateM_, when)
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Reader qualified as R
 import Data.Int (Int64)
+import Data.Random.Distribution.Categorical (categorical)
+import Data.Random.RVar (runRVar)
 import Data.Text qualified as T
 import EventPrinting
 import Flags (Flags (..), NestedFlags (..))
@@ -21,6 +24,7 @@ getGenerator genid =
   case genid of
     "simple_pred_1" -> simplePred1Gen
     "rel_ops1" -> relOps1Gen
+    "fused_simp_ops_1" -> fusedSimpleOps1Gen
     _ -> error "unknown generator"
 
 --  A(c,a,b) AND (D(c,b) AND (B(b,a) OR C(a,b)))
@@ -50,6 +54,27 @@ simplePred1Gen fp = withPrintState fp $ do
     newDb i
     outputNewEvent "A" (intArgs [5, 10])
   endOutput
+
+-- EXISTS y. (A(x, y) AND (x >= 1) AND (x < 2) AND (z = y))
+fusedSimpleOps1Gen :: FilePath -> IO ()
+fusedSimpleOps1Gen fp =
+  let rvar = categorical [(0.495, 0), (0.495, 1), (0.01, 2)]
+   in withPrintState fp $ do
+        forM_ [0 .. 1000000] $ \i -> do
+          yval <- uniformRM (0 :: Int64, 100000) globalStdGen
+          newDb i
+          xval <-
+            runRVar rvar globalStdGen
+              >>= \case
+                0 ->
+                  uniformRM (-1000, 0) globalStdGen
+                1 ->
+                  uniformRM (11, 10000) globalStdGen
+                2 ->
+                  uniformRM (1, 10) globalStdGen
+                _ -> error "cannot happen"
+          outputNewEvent "A" (intArgs [xval, yval])
+        endOutput
 
 randomEvent arity ub =
   intArgs <$> replicateM arity (uniformRM (0, ub) globalStdGen)
