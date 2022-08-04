@@ -11,8 +11,8 @@ option(USE_JEMALLOC "Use jemalloc" OFF)
 option(ENABLE_SANITIZERS "Enable ASAN and UBSAN" OFF)
 option(ENABLE_FILE_INPUT "Enable reading traces from files" ON)
 option(ENABLE_TRACE_TIME "Enable compile time tracing" OFF)
-# option(ENABLE_SOCK_INTF "Enable socket interface" ON) set_property(GLOBAL
-# PROPERTY GLOBAL_DEPENDS_DEBUG_MODE 1)
+option(ENABLE_SOCK_INTF "Enable socket interface" ON)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -65,7 +65,4 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   add_compile_options(-fcolor-diagnostics)
 endif()
 
-# if(ENABLE_SOCK_INTF) include(cmake/uring.cmake) endif()
-
 add_subdirectory(src)
-# add_subdirectory(bench) add_subdirectory(tests)

@@ -1,2 +1,2 @@
 #cmakedefine ENABLE_FILE_INPUT
-#cmakedefine ENABLE_SOCKET_INPUT
+#cmakedefine ENABLE_SOCK_INTF
