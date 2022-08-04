@@ -24,7 +24,7 @@ ABSL_FLAG(std::string, log, "log", "path to log in monpoly format");
 ABSL_FLAG(std::string, vpath, "", "output file of the monitor's verdicts");
 #endif
 
-__attribute__((visibility("default"))) extern "C" const char *
+extern "C" __attribute__((visibility("default"))) const char *
 __asan_default_options() {
   return "detect_leaks=false";
 }
