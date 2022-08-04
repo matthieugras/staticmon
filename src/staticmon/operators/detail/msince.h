@@ -92,8 +92,8 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
   tuple_buf_t tuple_in;
 };
 
-template<bool inf_intv, typename L2, typename T2>
-struct aggregation_mixin<inf_intv, no_aggregation, L2, T2> {
+template<bool is_no_remove, typename L2, typename T2>
+struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
   using ResL = L2;
   using ResT = T2;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
