@@ -88,6 +88,11 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
     });
   }
 
+  void tuple_in_clear() {
+    tuple_in.clear();
+    agg_ = Aggregation();
+  }
+
   Aggregation agg_;
   tuple_buf_t tuple_in;
 };
@@ -120,6 +125,8 @@ struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
   void tuple_in_erase_if(Pred pred) {
     absl::erase_if(tuple_in, pred);
   }
+
+  void tuple_in_clear() { tuple_in.clear(); }
 
   tuple_buf_t tuple_in;
 };
@@ -270,12 +277,18 @@ struct since_impl
   using project_idxs = table_util::comp_common_idx<L2, L1>;
 
   void join(tab1_t &tab1) {
+    if (tab1.empty()) {
+      if constexpr (!left_negated) {
+        this->tuple_since.clear();
+        this->tuple_in_clear();
+      }
+      return;
+    }
     auto erase_cond = [&tab1](const auto &tup) {
       if constexpr (left_negated)
         return tab1.contains(project_row<project_idxs>(tup.first));
       else
         return !tab1.contains(project_row<project_idxs>(tup.first));
-      return true;
     };
     absl::erase_if(this->tuple_since, erase_cond);
     this->tuple_in_erase_if(erase_cond);

@@ -53,7 +53,7 @@ public:
     if (!parsed_db || (parsed_db.error_count() > 0))
       throw std::runtime_error("failed to parse timestamped database");
     assert(parsed_db.has_value());
-    return parsed_db.value();
+    return std::move(parsed_db).value();
   }
 
 private:
