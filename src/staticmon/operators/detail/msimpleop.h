@@ -170,30 +170,33 @@ struct simpleops<Op1, Op2, Ops...> {
 
 template<typename Ops, typename MFormula>
 struct mfusedsimpleop {
-  using formula_res_l = typename MFormula::ResL;
-  using formula_res_t = typename MFormula::ResT;
-  using ResL = f_res_l<formula_res_l, formula_res_t, Ops>;
-  using ResT = f_res_t<formula_res_l, formula_res_t, Ops>;
-  using res_tab_t = mp_rename<ResT, table_util::table>;
-  using rec_tab_t = mp_rename<formula_res_t, table_util::table>;
+  using RecL = typename MFormula::ResL;
+  using RecT = typename MFormula::ResT;
+  using ResL = f_res_l<RecL, RecT, Ops>;
+  using ResT = f_res_t<RecL, RecT, Ops>;
+  using res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
+  using opt_res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
+  using rec_tab_t = table_util::opt_tab_t_of_row_t<RecT>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<opt_res_tab_t> eval(database &db, const ts_list &ts) {
     auto rec_res = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_res), std::vector<rec_tab_t>>,
-                  "table type unexpected");
-    std::vector<res_tab_t> res;
+    std::vector<opt_res_tab_t> res;
     res.reserve(rec_res.size());
-    for (auto &rec_tab : rec_res) {
-      res_tab_t tab;
-      tab.reserve(rec_tab.size());
-      for (const auto &row : rec_tab) {
-        auto row_new = Ops::template eval<formula_res_l>(row);
-        static_assert(std::is_same_v<decltype(row_new), std::optional<ResT>>,
-                      "unexpected row type");
-        if (row_new)
-          tab.emplace(std::move(*row_new));
-      }
-      res.emplace_back(std::move(tab));
+    for (auto &opt_rec_tab : rec_res) {
+      while (!table_util::visit_opt_table(opt_rec_tab, [&res](auto &t) {
+        if (!t) {
+          table_util::add_empty_to_opt_buf(res);
+        } else {
+          res_tab_t tab;
+          tab.reserve(t->size());
+          for (const auto &row : *t) {
+            auto row_new = Ops::template eval<RecL>(row);
+            if (row_new)
+              tab.emplace(std::move(*row_new));
+          }
+          res.emplace_back(std::move(tab));
+        }
+      })) {};
     }
     return res;
   }

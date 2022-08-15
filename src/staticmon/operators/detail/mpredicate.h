@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/mp11.hpp>
+#include <boost/variant2.hpp>
 #include <cstdint>
 #include <staticmon/common/mp_helpers.h>
 #include <staticmon/common/table.h>
@@ -168,6 +169,7 @@ struct mpredicate {
   using csts = typename PredComp::csts;
   using ResL = typename PredComp::ResL;
   using ResT = typename PredComp::ResT;
+  using opt_res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
 
   template<typename Event, typename... VarTys, typename... VarIdxs>
   ResT project_event_vars(const Event &e, std::tuple<VarTys...>,
@@ -194,13 +196,13 @@ struct mpredicate {
     return (true && ... && (sat_var_group(e, Groups{})));
   }
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<opt_res_tab_t> eval(database &db, const ts_list &ts) {
     std::size_t n = ts.size();
     const auto &cdb = db;
     auto it = cdb.find(PredId);
     if (it == cdb.end())
       return std::vector<res_tab_t>(n);
-    std::vector<res_tab_t> res;
+    std::vector<opt_res_tab_t> res;
     res.reserve(n);
     const auto &evll = it->second;
     for (const auto &evl : evll) {
@@ -210,7 +212,11 @@ struct mpredicate {
             sat_var_constraints(ev, var_non_trivial_groups{}))
           tab.emplace(project_event_vars(ev, ResT{}, var_idxs{}));
       }
-      res.emplace_back(std::move(tab));
+      if (tab.empty()) {
+        table_util::add_empty_to_opt_buf(res);
+      } else {
+        res.emplace_back(std::move(tab));
+      }
     }
     return res;
   }

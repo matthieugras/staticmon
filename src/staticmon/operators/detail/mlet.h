@@ -1,4 +1,5 @@
 #pragma once
+#include <boost/variant2.hpp>
 #include <cstdint>
 #include <optional>
 #include <staticmon/common/mp_helpers.h>
@@ -19,8 +20,19 @@ template<typename ReorderMask, typename Tab>
 database::mapped_type tabs_to_db_tabs(const std::vector<Tab> &tabs) {
   database::mapped_type res;
   res.reserve(tabs.size());
-  for (const auto &tab : tabs)
-    res.emplace_back(tab_to_db_tab<ReorderMask>(tab));
+  for (const auto &tab : tabs) {
+    auto visitor = [&res](auto &&tab) {
+      using T = std::remove_cvref_t<decltype(tab)>;
+      if constexpr (std::is_same_v<T, std::size_t>) {
+        for (std::size_t i = 0; i < tab; ++i) {
+          res.emplace_back();
+        }
+      } else {
+        res.emplace_back(tab_to_db_tab<ReorderMask>(tab));
+      }
+    };
+    boost::variant2::visit(visitor, tab);
+  }
   return res;
 }
 
@@ -29,15 +41,15 @@ template<std::size_t pred_id, typename PredL, typename MFormula1,
 struct mlet {
   using ResL = typename MFormula2::ResL;
   using ResT = typename MFormula2::ResT;
-  using res_tab_t = table_util::tab_t_of_row_t<ResT>;
+  using opt_res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
   using reorder_mask =
     table_util::get_reorder_mask<typename MFormula1::ResL, PredL>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<opt_res_tab_t> eval(database &db, const ts_list &ts) {
     auto l_tabs = f1_.eval(db, ts);
     auto db_ent = tabs_to_db_tabs<reorder_mask>(l_tabs);
     // predicate ids assumed to be unique
-    bool did_emplace = db.emplace(pred_id, std::move(db_ent)).second;
+    db.emplace(pred_id, std::move(db_ent));
     assert(did_emplace);
     auto res = f2_.eval(db, ts);
     db.erase(pred_id);
@@ -77,7 +89,7 @@ struct mletpast {
       std::vector<tab1_t> rec_tabs;
       if (fst_it) {
         fst_it = false;
-        bool did_emplace = db.emplace(pred_id, std::move(buf)).second;
+        db.emplace(pred_id, std::move(buf));
         assert(did_emplace);
         rec_tabs = f1_.eval(db, ts);
       } else {

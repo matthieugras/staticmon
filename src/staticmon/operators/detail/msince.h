@@ -19,7 +19,7 @@ using tuple_buf = absl::flat_hash_map<std::tuple<Args...>, std::size_t>;
 
 template<typename T>
 using table_buf = boost::container::devector<
-  std::pair<std::size_t, table_util::tab_t_of_row_t<T>>>;
+  std::pair<std::size_t, table_util::opt_tab_t_of_row_t<T>>>;
 
 struct no_aggregation;
 
@@ -40,7 +40,17 @@ struct aggregation_mixin<true, agg_info<AggVals...>, L2, T2> {
   using ResL = typename Aggregation::ResL;
   using ResT = typename Aggregation::ResT;
 
-  auto produce_result() { return agg_.template finalize_table<false>(); }
+  using acc_t = std::vector<table_util::opt_tab_t_of_row_t<ResT>>;
+  using res_tab_t = table_util::tab_t_of_row_t<ResT>;
+
+  void produce_result(acc_t &acc) {
+    auto res = agg_.template finalize_table<false>();
+    if (res.empty()) {
+      table_util::add_empty_to_opt_buf(res);
+    } else {
+      acc.emplace_back(std::move(res));
+    }
+  }
 
   void tuple_in_update(const T2 &e, size_t) {
     if (rows_in_result.emplace(e).second) {
@@ -61,7 +71,17 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
   using ResL = typename Aggregation::ResL;
   using ResT = typename Aggregation::ResT;
 
-  auto produce_result() { return agg_.template finalize_table<false>(); }
+  using acc_t = std::vector<table_util::opt_tab_t_of_row_t<ResT>>;
+  using res_tab_t = table_util::tab_t_of_row_t<ResT>;
+
+  void produce_result(acc_t &acc) {
+    auto res = agg_.template finalize_table<false>();
+    if (res.empty()) {
+      table_util::add_empty_to_opt_buf(res);
+    } else {
+      acc.emplace_back(std::move(res));
+    }
+  }
 
   void tuple_in_update(const T2 &e, size_t ts) {
     if (tuple_in.insert_or_assign(e, ts).second) {
@@ -102,14 +122,19 @@ struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
   using ResL = L2;
   using ResT = T2;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
+  using acc_t = std::vector<table_util::opt_tab_t_of_row_t<T2>>;
   using res_tab_t = table_util::tab_t_of_row_t<T2>;
 
-  res_tab_t produce_result() {
+  void produce_result(acc_t &acc) {
+    if (tuple_in.empty()) {
+      table_util::add_empty_to_opt_buf(acc);
+      return;
+    }
     res_tab_t tab;
     tab.reserve(tuple_in.size());
     for (auto it = tuple_in.cbegin(); it != tuple_in.cend(); ++it)
       tab.emplace(it->first);
-    return tab;
+    acc.emplace_back(std::move(tab));
   }
 
   void tuple_in_update(const T2 &e, size_t ts) {
@@ -189,9 +214,7 @@ template<bool is_once, typename AggInfo, typename Interval, typename L2,
          typename T2>
 struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
   using Base = typename base_mixin::interval_bnd_mixin;
-  using table_buf_t = table_buf<T2>;
-  using tuple_buf_t = mp_rename<T2, tuple_buf>;
-  using tab2_t = table_util::tab_t_of_row_t<T2>;
+  using tab2_opt_t = table_util::opt_tab_t_of_row_t<T2>;
 
   void update_ts_buf(const ts_list &ts) {
     ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
@@ -232,23 +255,29 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
     }
   }
 
-  void add_new_table(tab2_t &tab_r) {
-    for (const auto &e : tab_r) {
-      this->tuple_since.try_emplace(e, nts_);
-      if constexpr (!Interval::is_infinite)
-        this->all_data_counted[e]++;
-    }
-    if constexpr (Interval::contains(0)) {
-      for (const auto &e : tab_r)
-        this->tuple_in_update(e, nts_);
-      if constexpr (!Interval::is_infinite) {
-        assert(this->data_in.empty() || nts_ >= this->data_in.back().first);
-        this->data_in.emplace_back(nts_, std::move(tab_r));
+  bool add_new_table(tab2_opt_t &tab_r) {
+    return table_util::visit_opt_table(tab_r, [this](auto &t) {
+      if (t) {
+        for (const auto &e : *t) {
+          this->tuple_since.try_emplace(e, nts_);
+          if constexpr (!Interval::is_infinite)
+            this->all_data_counted[e]++;
+        }
       }
-    } else {
-      assert(this->data_prev.empty() || nts_ >= this->data_prev.back().first);
-      this->data_prev.emplace_back(nts_, std::move(tab_r));
-    }
+      if constexpr (Interval::contains(0)) {
+        if (t) {
+          for (const auto &e : *t)
+            this->tuple_in_update(e, nts_);
+        }
+        if constexpr (!Interval::is_infinite) {
+          assert(this->data_in.empty() || nts_ >= this->data_in.back().first);
+          this->data_in.emplace_back(nts_, std::move(t));
+        }
+      } else {
+        assert(this->data_prev.empty() || nts_ >= this->data_prev.back().first);
+        this->data_prev.emplace_back(nts_, std::move(t));
+      }
+    });
   }
 
   std::size_t nts_;
@@ -266,32 +295,34 @@ struct since_impl
   using L2 = typename MFormula2::ResL;
   using T1 = typename MFormula1::ResT;
   using T2 = typename MFormula2::ResT;
-  using rec_tab1_t = table_util::tab_t_of_row_t<T1>;
-  using rec_tab2_t = table_util::tab_t_of_row_t<T2>;
 
   using ResL = typename Base::ResL;
   using ResT = typename Base::ResT;
-  using res_tab_t = table_util::tab_t_of_row_t<ResT>;
+  using res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
   using tab1_t = table_util::tab_t_of_row_t<T1>;
   using tab2_t = table_util::tab_t_of_row_t<T2>;
+  using tab1_opt_t = table_util::opt_tab_t_of_row_t<T1>;
+  using tab2_opt_t = table_util::opt_tab_t_of_row_t<T2>;
   using project_idxs = table_util::comp_common_idx<L2, L1>;
 
-  void join(tab1_t &tab1) {
-    if (tab1.empty()) {
-      if constexpr (!left_negated) {
-        this->tuple_since.clear();
-        this->tuple_in_clear();
+  bool join(std::optional<tab1_opt_t> &tab1) {
+    return table_util::visit_opt_table(tab1, [this](auto &t) {
+      if (!t) {
+        if constexpr (!left_negated) {
+          this->tuple_since.clear();
+          this->tuple_in_clear();
+        }
+        return;
       }
-      return;
-    }
-    auto erase_cond = [&tab1](const auto &tup) {
-      if constexpr (left_negated)
-        return tab1.contains(project_row<project_idxs>(tup.first));
-      else
-        return !tab1.contains(project_row<project_idxs>(tup.first));
-    };
-    absl::erase_if(this->tuple_since, erase_cond);
-    this->tuple_in_erase_if(erase_cond);
+      auto erase_cond = [t](const auto &tup) {
+        if constexpr (left_negated)
+          return t->contains(project_row<project_idxs>(tup.first));
+        else
+          return !t->contains(project_row<project_idxs>(tup.first));
+      };
+      absl::erase_if(this->tuple_since, erase_cond);
+      this->tuple_in_erase_if(erase_cond);
+    });
   }
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
@@ -299,10 +330,6 @@ struct since_impl
     auto rec_res2 = f2_.eval(db, ts);
     this->update_ts_buf(ts);
     std::vector<res_tab_t> res;
-    static_assert(std::is_same_v<decltype(rec_res1), std::vector<rec_tab1_t>>,
-                  "unexpected table type");
-    static_assert(std::is_same_v<decltype(rec_res2), std::vector<rec_tab2_t>>,
-                  "unexpected table type");
     f1_buf_.insert(f1_buf_.end(), std::make_move_iterator(rec_res1.begin()),
                    std::make_move_iterator(rec_res1.end()));
     f2_buf_.insert(f2_buf_.end(), std::make_move_iterator(rec_res2.begin()),
@@ -315,22 +342,22 @@ struct since_impl
           break;
         if (!skew_) {
           this->add_new_ts();
-          this->join(f1_buf_.front());
-          f1_buf_.pop_front();
+          if (this->join(f1_buf_.front()))
+            f1_buf_.pop_front();
           res.emplace_back(this->produce_result());
           skew_ = true;
         }
         break;
       } else if (has_r && skew_) {
-        this->add_new_table(f2_buf_.front());
-        f2_buf_.pop_front();
+        if (this->add_new_table(f2_buf_.front()))
+          f2_buf_.pop_front();
         skew_ = false;
       } else if (has_l && has_r && !skew_) {
         this->add_new_ts();
-        this->join(f1_buf_.front());
-        f1_buf_.pop_front();
-        this->add_new_table(f2_buf_.front());
-        f2_buf_.pop_front();
+        if (this->join(f1_buf_.front()))
+          f1_buf_.pop_front();
+        if (this->add_new_table(f2_buf_.front()))
+          f2_buf_.pop_front();
         res.emplace_back(this->produce_result());
       } else {
         break;
@@ -341,8 +368,8 @@ struct since_impl
 
   MFormula1 f1_;
   MFormula2 f2_;
-  boost::container::devector<tab1_t> f1_buf_;
-  boost::container::devector<tab2_t> f2_buf_;
+  boost::container::devector<tab1_opt_t> f1_buf_;
+  boost::container::devector<tab1_opt_t> f2_buf_;
   bool skew_ = false;
 };
 
@@ -353,29 +380,27 @@ struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
 
   using L2 = typename MFormula::ResL;
   using T2 = typename MFormula::ResT;
-  using rec_tab_t = table_util::tab_t_of_row_t<T2>;
   using tab2_t = table_util::tab_t_of_row_t<T2>;
 
   using ResL = typename Base::ResL;
   using ResT = typename Base::ResT;
-  using res_tab_t = table_util::tab_t_of_row_t<ResT>;
+  using res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
-                  "unexpected table type");
     this->update_ts_buf(ts);
     std::vector<res_tab_t> res;
     res.reserve(rec_tabs.size());
     auto it = rec_tabs.begin(), eit = rec_tabs.end();
     if (it != eit && skew_) {
-      this->add_new_table(*it);
+      if (this->add_new_table(*it))
+        ++it;
       skew_ = false;
-      ++it;
     }
-    for (; it != eit; ++it) {
+    for (; it != eit;) {
       this->add_new_ts();
-      this->add_new_table(*it);
+      if (this->add_new_table(*it))
+        it++;
       res.emplace_back(this->produce_result());
     }
     if constexpr (Interval::contains(0))

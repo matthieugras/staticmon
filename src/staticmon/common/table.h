@@ -2,6 +2,7 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <boost/mp11.hpp>
+#include <boost/variant2.hpp>
 #include <fmt/format.h>
 #include <iostream>
 #include <iterator>
@@ -18,8 +19,47 @@ using namespace boost::mp11;
 template<typename... Args>
 using table = absl::flat_hash_set<std::tuple<Args...>>;
 
+template<typename... Args>
+using opt_table = boost::variant2::variant<table<Args...>, std::size_t>;
+
+template<typename F, typename Tab>
+bool visit_opt_table(Tab &t, F &&f) {
+  auto visitor = [f](auto &&val) {
+    using T = std::remove_cvref_t<decltype(val)>;
+    if constexpr (std::is_same_v<T, std::size_t>) {
+      assert(val > 0);
+      val -= 1;
+      f(std::nullopt);
+      if (val)
+        return false;
+      else
+        return true;
+    } else {
+      f(std::forward<T>(val));
+      return true;
+    }
+  };
+  boost::variant2::visit(t, visitor);
+}
+
+template<typename Res>
+void add_empty_to_opt_buf(Res &res) {
+  auto v = [&res](auto &&val) {
+    using T2 = std::remove_cvref_t<decltype(val)>;
+    if constexpr (std::is_same_v<T2, std::size_t>) {
+      val += 1;
+    } else {
+      res.emplace_back(1);
+    }
+  };
+  boost::variant2::visit(v, res.back());
+}
+
 template<typename T>
 using tab_t_of_row_t = mp_rename<T, table>;
+
+template<typename T>
+using opt_tab_t_of_row_t = mp_rename<T, opt_table>;
 
 inline table<> unit_table() {
   table_util::table<> tab;
