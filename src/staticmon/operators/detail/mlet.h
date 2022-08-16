@@ -50,7 +50,6 @@ struct mlet {
     auto db_ent = tabs_to_db_tabs<reorder_mask>(l_tabs);
     // predicate ids assumed to be unique
     db.emplace(pred_id, std::move(db_ent));
-    assert(did_emplace);
     auto res = f2_.eval(db, ts);
     db.erase(pred_id);
     return res;
@@ -90,7 +89,6 @@ struct mletpast {
       if (fst_it) {
         fst_it = false;
         db.emplace(pred_id, std::move(buf));
-        assert(did_emplace);
         rec_tabs = f1_.eval(db, ts);
       } else {
         database rec_db;

@@ -5,7 +5,6 @@
 #include <staticmon/operators/operators.h>
 #include <type_traits>
 #include <vector>
-#include <cstdint>
 
 inline constexpr size_t MAXIMUM_TIMESTAMP = std::numeric_limits<size_t>::max();
 
@@ -13,6 +12,7 @@ struct monitor {
   using T = typename input_formula::ResT;
   using L = typename input_formula::ResL;
   using rec_tab_t = table_util::tab_t_of_row_t<T>;
+  using opt_rec_tab_t = table_util::opt_tab_t_of_row_t<T>;
   using ResT = typename table_util::reorder_info<L, free_variables, T>::ResT;
   using reorder_mask = table_util::get_reorder_mask<L, free_variables>;
 
@@ -32,12 +32,16 @@ struct monitor {
       max_tp_++;
     }
     auto sats = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(sats), std::vector<rec_tab_t>>,
-                  "unexpected table type");
     std::size_t new_curr_tp = curr_tp_;
     std::size_t n = sats.size();
-    for (std::size_t i = 0; i < n; ++i, ++new_curr_tp) {
-      auto output_tab = make_verdicts(sats[i]);
+    for (std::size_t i = 0; i < n; ++new_curr_tp) {
+      std::vector<ResT> output_tab;
+      if (table_util::visit_opt_table(
+            sats[i], [&output_tab, this](std::optional<rec_tab_t> &&t) {
+              if (t)
+                output_tab = make_verdicts(*t);
+            }))
+        i++;
       auto it = tp_ts_map_.find(new_curr_tp);
       if (it->second < MAXIMUM_TIMESTAMP)
         printer_.print_verdict(it->second, new_curr_tp, output_tab);

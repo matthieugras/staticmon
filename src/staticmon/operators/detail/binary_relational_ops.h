@@ -48,7 +48,8 @@ struct bin_rel_op {
     if constexpr (std::is_same_v<Tag, and_tag>) {
       return buf_.update_and_reduce(
         rec_res1, rec_res2,
-        [](std::optional<rec_tab1_t> &tab1, std::optional<rec_tab2_t> &tab2) {
+        [](std::optional<rec_tab1_t> &tab1,
+           std::optional<rec_tab2_t> &tab2) -> res_tab_t {
           if (!tab1 || !tab2)
             return std::nullopt;
 
@@ -59,7 +60,8 @@ struct bin_rel_op {
     } else if constexpr (std::is_same_v<Tag, or_tag>) {
       return buf_.update_and_reduce(
         rec_res1, rec_res2,
-        [](std::optional<rec_tab1_t> &tab1, std::optional<rec_tab2_t> &tab2) {
+        [](std::optional<rec_tab1_t> &tab1,
+           std::optional<rec_tab2_t> &tab2) -> res_tab_t {
           if (!tab1)
             return std::nullopt;
           if (!tab2)
@@ -74,7 +76,7 @@ struct bin_rel_op {
       return buf_.update_and_reduce(
         rec_res1, rec_res2,
         [](const std::optional<rec_tab1_t> &tab1,
-           const std::optional<rec_tab2_t> &tab2) {
+           const std::optional<rec_tab2_t> &tab2) -> res_tab_t {
           if (!tab1)
             return std::nullopt;
           if (!tab2)

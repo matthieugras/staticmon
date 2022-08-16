@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <staticmon/common/mp_helpers.h>
 #include <string>
 #include <tuple>
@@ -22,24 +23,24 @@ using table = absl::flat_hash_set<std::tuple<Args...>>;
 template<typename... Args>
 using opt_table = boost::variant2::variant<table<Args...>, std::size_t>;
 
-template<typename F, typename Tab>
-bool visit_opt_table(Tab &t, F &&f) {
+template<typename F, typename... Args>
+bool visit_opt_table(opt_table<Args...> &t, F &&f) {
   auto visitor = [f](auto &&val) {
     using T = std::remove_cvref_t<decltype(val)>;
     if constexpr (std::is_same_v<T, std::size_t>) {
       assert(val > 0);
       val -= 1;
-      f(std::nullopt);
+      f(std::optional<table<Args...>>());
       if (val)
         return false;
       else
         return true;
     } else {
-      f(std::forward<T>(val));
+      f(std::optional<T>(std::forward<T>(val)));
       return true;
     }
   };
-  boost::variant2::visit(t, visitor);
+  return boost::variant2::visit(visitor, t);
 }
 
 template<typename Res>

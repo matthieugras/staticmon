@@ -52,6 +52,7 @@ struct predicate_idx_computation {
   using ResT = mp_rename<mp_apply_idxs<arg_tys, var_idxs>, std::tuple>;
   using ResL = mp_apply_idxs<arg_vars, var_idxs>;
   using res_tab_t = mp_rename<ResT, table_util::table>;
+  using opt_res_tab_t = mp_rename<ResT, table_util::opt_table>;
 };
 
 struct mtp_tag;
@@ -162,6 +163,7 @@ template<std::size_t PredId, typename... Args>
 struct mpredicate {
   using PredComp = predicate_idx_computation<Args...>;
   using res_tab_t = typename PredComp::res_tab_t;
+  using opt_res_tab_t = typename PredComp::opt_res_tab_t;
   using cst_tys = typename PredComp::cst_tys;
   using cst_idxs = typename PredComp::cst_idxs;
   using var_idxs = typename PredComp::var_idxs;
@@ -169,7 +171,6 @@ struct mpredicate {
   using csts = typename PredComp::csts;
   using ResL = typename PredComp::ResL;
   using ResT = typename PredComp::ResT;
-  using opt_res_tab_t = table_util::opt_tab_t_of_row_t<ResT>;
 
   template<typename Event, typename... VarTys, typename... VarIdxs>
   ResT project_event_vars(const Event &e, std::tuple<VarTys...>,
@@ -201,7 +202,7 @@ struct mpredicate {
     const auto &cdb = db;
     auto it = cdb.find(PredId);
     if (it == cdb.end())
-      return std::vector<res_tab_t>(n);
+      return std::vector<opt_res_tab_t>(n);
     std::vector<opt_res_tab_t> res;
     res.reserve(n);
     const auto &evll = it->second;

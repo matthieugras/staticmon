@@ -1,20 +1,17 @@
 #pragma once
 #include <algorithm>
 #include <boost/container/devector.hpp>
+#include <staticmon/common/table.h>
 #include <staticmon/operators/detail/operator_types.h>
 #include <type_traits>
 #include <vector>
 
-template<typename T1, typename T2>
+template<typename T1, typename T2, typename ResT>
 class bin_op_buffer {
 public:
   template<typename F>
-  using ResT = std::invoke_result_t<F, std::add_lvalue_reference_t<T1>,
-                                    std::add_lvalue_reference_t<T2>>;
-
-  template<typename F>
-  std::vector<ResT<F>> update_and_reduce(std::vector<T1> &new_l,
-                                         std::vector<T2> &new_r, F f) {
+  std::vector<table_util::opt_tab_t_of_row_t<ResT>>
+  update_and_reduce(std::vector<T1> &new_l, std::vector<T2> &new_r, F f) {
     assert(bufl_.empty() || bufr_.empty());
     if (bufl_.empty())
       return update_and_reduce_impl<true>(bufl_, bufr_, new_l, new_r, f);
@@ -24,7 +21,7 @@ public:
 
 private:
   template<bool fst_is_left, typename Typ1, typename Typ2, typename F>
-  std::vector<ResT<F>>
+  std::vector<table_util::opt_tab_t_of_row_t<ResT>>
   update_and_reduce_impl(boost::container::devector<Typ1> &buf1,
                          boost::container::devector<Typ2> &buf2,
                          std::vector<Typ1> &new1, std::vector<Typ2> &new2,
@@ -32,15 +29,24 @@ private:
     assert(buf1.empty() || buf2.empty());
     auto it1 = new1.begin(), eit1 = new1.end();
     auto it2 = new2.begin(), eit2 = new2.end();
-    std::vector<ResT<F>> res;
-    std::size_t n_match_buf = std::min(buf2.size(), new1.size());
-    std::size_t l_left = new1.size() - n_match_buf;
-    res.reserve(n_match_buf + std::min(l_left, new2.size()));
-    for (; !buf2.empty() && it1 != eit1; ++it1, buf2.pop_front()) {
-      if constexpr (fst_is_left)
+    std::vector<table_util::opt_tab_t_of_row_t<ResT>> res;
+    for (; !buf2.empty() && it1 != eit1; ++it1) {
+      bool do_pop = false;
+      if constexpr (fst_is_left) {
+        do_pop = table_util::visit_opt_table(
+          buf2.front(), [&res, it1, &buf2, f](auto &&t) {
+            auto r = f(*it1, buf2.front());
+            if (r)
+              res.emplace_back(std::move(r));
+            else
+              table_util::add_empty_to_opt_buf(res);
+          });
         res.emplace_back(f(*it1, buf2.front()));
-      else
+      } else {
         res.emplace_back(f(buf2.front(), *it1));
+      }
+      if (do_pop)
+        buf2.pop_front();
     }
     for (; it1 != eit1 && it2 != eit2; ++it1, ++it2) {
       if constexpr (fst_is_left)
