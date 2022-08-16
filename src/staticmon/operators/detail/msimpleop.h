@@ -91,7 +91,7 @@ struct mandrel {
       static_assert(always_false_v<CstTy>, "unknown constraint type");
 
     if (keep_row)
-      return std::move(row);
+      return row;
     else
       return std::nullopt;
   }

@@ -1,0 +1,1 @@
+LETPAST P(x) = (Q(x) OR (PREV P(x))) IN P(x)

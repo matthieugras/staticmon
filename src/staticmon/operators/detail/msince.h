@@ -3,6 +3,7 @@
 #include <absl/container/flat_hash_set.h>
 #include <boost/container/devector.hpp>
 #include <boost/mp11.hpp>
+#include <iterator>
 #include <staticmon/common/mp_helpers.h>
 #include <staticmon/common/table.h>
 #include <staticmon/operators/detail/aggregations.h>
@@ -87,12 +88,17 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
     });
   }
 
+  void tuple_in_clear() {
+    tuple_in.clear();
+    agg_ = Aggregation();
+  }
+
   Aggregation agg_;
   tuple_buf_t tuple_in;
 };
 
-template<bool inf_intv, typename L2, typename T2>
-struct aggregation_mixin<inf_intv, no_aggregation, L2, T2> {
+template<bool is_no_remove, typename L2, typename T2>
+struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
   using ResL = L2;
   using ResT = T2;
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
@@ -119,6 +125,8 @@ struct aggregation_mixin<inf_intv, no_aggregation, L2, T2> {
   void tuple_in_erase_if(Pred pred) {
     absl::erase_if(tuple_in, pred);
   }
+
+  void tuple_in_clear() { tuple_in.clear(); }
 
   tuple_buf_t tuple_in;
 };
@@ -185,7 +193,24 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
   using tab2_t = table_util::tab_t_of_row_t<T2>;
 
-  void add_new_ts(size_t ts) {
+  void update_ts_buf(const ts_list &ts) {
+    ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
+  }
+
+  bool maybe_add_new_ts() {
+    if (ts_buf_.empty()) {
+      return false;
+    } else {
+      add_new_ts();
+      return true;
+    }
+  }
+
+  void add_new_ts() {
+    assert(!ts_buf_.empty());
+    std::size_t ts = ts_buf_.front();
+    ts_buf_.pop_front();
+    nts_ = ts;
     if constexpr (!Interval::is_infinite)
       this->drop_too_old(ts);
 
@@ -207,24 +232,27 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
     }
   }
 
-  void add_new_table(tab2_t &tab_r, std::size_t ts) {
+  void add_new_table(tab2_t &tab_r) {
     for (const auto &e : tab_r) {
-      this->tuple_since.try_emplace(e, ts);
+      this->tuple_since.try_emplace(e, nts_);
       if constexpr (!Interval::is_infinite)
         this->all_data_counted[e]++;
     }
     if constexpr (Interval::contains(0)) {
       for (const auto &e : tab_r)
-        this->tuple_in_update(e, ts);
+        this->tuple_in_update(e, nts_);
       if constexpr (!Interval::is_infinite) {
-        assert(this->data_in.empty() || ts >= this->data_in.back().first);
-        this->data_in.emplace_back(ts, std::move(tab_r));
+        assert(this->data_in.empty() || nts_ >= this->data_in.back().first);
+        this->data_in.emplace_back(nts_, std::move(tab_r));
       }
     } else {
-      assert(this->data_prev.empty() || ts >= this->data_prev.back().first);
-      this->data_prev.emplace_back(ts, std::move(tab_r));
+      assert(this->data_prev.empty() || nts_ >= this->data_prev.back().first);
+      this->data_prev.emplace_back(nts_, std::move(tab_r));
     }
   }
+
+  std::size_t nts_;
+  boost::container::devector<std::size_t> ts_buf_;
 };
 
 template<typename AggInfo, bool left_negated, typename Interval,
@@ -248,47 +276,74 @@ struct since_impl
   using tab2_t = table_util::tab_t_of_row_t<T2>;
   using project_idxs = table_util::comp_common_idx<L2, L1>;
 
-  res_tab_t eval_tab(tab1_t &tab1, tab2_t &tab2, std::size_t new_ts) {
-    this->add_new_ts(new_ts);
-    this->join(tab1);
-    this->add_new_table(tab2, new_ts);
-    return this->produce_result();
-  }
-
   void join(tab1_t &tab1) {
+    if (tab1.empty()) {
+      if constexpr (!left_negated) {
+        this->tuple_since.clear();
+        this->tuple_in_clear();
+      }
+      return;
+    }
     auto erase_cond = [&tab1](const auto &tup) {
       if constexpr (left_negated)
         return tab1.contains(project_row<project_idxs>(tup.first));
       else
         return !tab1.contains(project_row<project_idxs>(tup.first));
-      return true;
     };
     absl::erase_if(this->tuple_since, erase_cond);
     this->tuple_in_erase_if(erase_cond);
   }
 
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
-    ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
-    std::vector<res_tab_t> res;
     auto rec_res1 = f1_.eval(db, ts);
     auto rec_res2 = f2_.eval(db, ts);
+    this->update_ts_buf(ts);
+    std::vector<res_tab_t> res;
     static_assert(std::is_same_v<decltype(rec_res1), std::vector<rec_tab1_t>>,
                   "unexpected table type");
     static_assert(std::is_same_v<decltype(rec_res2), std::vector<rec_tab2_t>>,
                   "unexpected table type");
-    return bin_buf_.update_and_reduce(
-      rec_res1, rec_res2, [this](rec_tab1_t &tab1, rec_tab2_t &tab2) {
-        assert(!ts_buf_.empty());
-        std::size_t new_ts = ts_buf_.front();
-        ts_buf_.pop_front();
-        return eval_tab(tab1, tab2, new_ts);
-      });
+    f1_buf_.insert(f1_buf_.end(), std::make_move_iterator(rec_res1.begin()),
+                   std::make_move_iterator(rec_res1.end()));
+    f2_buf_.insert(f2_buf_.end(), std::make_move_iterator(rec_res2.begin()),
+                   std::make_move_iterator(rec_res2.end()));
+
+    for (;;) {
+      bool has_l = !f1_buf_.empty(), has_r = !f2_buf_.empty();
+      if (has_l && !has_r) {
+        if constexpr (Interval::contains(0))
+          break;
+        if (!skew_) {
+          this->add_new_ts();
+          this->join(f1_buf_.front());
+          f1_buf_.pop_front();
+          res.emplace_back(this->produce_result());
+          skew_ = true;
+        }
+        break;
+      } else if (has_r && skew_) {
+        this->add_new_table(f2_buf_.front());
+        f2_buf_.pop_front();
+        skew_ = false;
+      } else if (has_l && has_r && !skew_) {
+        this->add_new_ts();
+        this->join(f1_buf_.front());
+        f1_buf_.pop_front();
+        this->add_new_table(f2_buf_.front());
+        f2_buf_.pop_front();
+        res.emplace_back(this->produce_result());
+      } else {
+        break;
+      }
+    }
+    return res;
   }
 
   MFormula1 f1_;
   MFormula2 f2_;
-  bin_op_buffer<rec_tab1_t, rec_tab2_t> bin_buf_;
-  boost::container::devector<std::size_t> ts_buf_;
+  boost::container::devector<tab1_t> f1_buf_;
+  boost::container::devector<tab2_t> f2_buf_;
+  bool skew_ = false;
 };
 
 template<typename AggInfo, typename Interval, typename MFormula>
@@ -305,33 +360,35 @@ struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
   using ResT = typename Base::ResT;
   using res_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  res_tab_t eval_tab(tab2_t &tab_r, std::size_t new_ts) {
-    this->add_new_ts(new_ts);
-    this->add_new_table(tab_r, new_ts);
-    return this->produce_result();
-  }
-
   std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
-    ts_buf_.insert(ts_buf_.end(), ts.begin(), ts.end());
     auto rec_tabs = f_.eval(db, ts);
     static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
                   "unexpected table type");
+    this->update_ts_buf(ts);
     std::vector<res_tab_t> res;
     res.reserve(rec_tabs.size());
-    for (auto &tab : rec_tabs) {
-      assert(!ts_buf_.empty());
-      size_t new_ts = ts_buf_.front();
-      ts_buf_.pop_front();
-      auto ret = eval_tab(tab, new_ts);
-      static_assert(std::is_same_v<decltype(ret), res_tab_t>,
-                    "unexpected table type");
-      res.emplace_back(std::move(ret));
+    auto it = rec_tabs.begin(), eit = rec_tabs.end();
+    if (it != eit && skew_) {
+      this->add_new_table(*it);
+      skew_ = false;
+      ++it;
+    }
+    for (; it != eit; ++it) {
+      this->add_new_ts();
+      this->add_new_table(*it);
+      res.emplace_back(this->produce_result());
+    }
+    if constexpr (Interval::contains(0))
+      return res;
+    if (!skew_ && this->maybe_add_new_ts()) {
+      res.emplace_back(this->produce_result());
+      skew_ = true;
     }
     return res;
   }
 
   MFormula f_;
-  boost::container::devector<std::size_t> ts_buf_;
+  bool skew_ = false;
 };
 
 template<typename LBound, typename UBound, typename MFormula>

@@ -29,17 +29,18 @@ private:
                          boost::container::devector<Typ2> &buf2,
                          std::vector<Typ1> &new1, std::vector<Typ2> &new2,
                          F f) {
+    assert(buf1.empty() || buf2.empty());
     auto it1 = new1.begin(), eit1 = new1.end();
     auto it2 = new2.begin(), eit2 = new2.end();
     std::vector<ResT<F>> res;
     std::size_t n_match_buf = std::min(buf2.size(), new1.size());
     std::size_t l_left = new1.size() - n_match_buf;
     res.reserve(n_match_buf + std::min(l_left, new2.size()));
-    for (; !buf2.empty() && it1 != eit1; ++it1, buf2.pop_back()) {
+    for (; !buf2.empty() && it1 != eit1; ++it1, buf2.pop_front()) {
       if constexpr (fst_is_left)
-        res.emplace_back(f(*it1, buf2.back()));
+        res.emplace_back(f(*it1, buf2.front()));
       else
-        res.emplace_back(f(buf2.back(), *it1));
+        res.emplace_back(f(buf2.front(), *it1));
     }
     for (; it1 != eit1 && it2 != eit2; ++it1, ++it2) {
       if constexpr (fst_is_left)
@@ -53,6 +54,7 @@ private:
     else
       buf1.insert(buf1.end(), std::make_move_iterator(it1),
                   std::make_move_iterator(eit1));
+    assert(buf1.empty() || buf2.empty());
     return res;
   }
 

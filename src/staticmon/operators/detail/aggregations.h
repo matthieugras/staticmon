@@ -40,7 +40,7 @@ template<typename AggVarT>
 struct agg_group<max_agg_op, AggVarT> : simple_combiner<AggVarT> {
 
   template<typename AggVarTU>
-  agg_group<max_agg_op, AggVarT>(AggVarTU &&first_event)
+  agg_group(AggVarTU &&first_event)
       : simple_combiner<AggVarT>(std::forward<AggVarTU>(first_event)) {}
 
   template<typename AggVarTU>
@@ -54,7 +54,7 @@ template<typename AggVarT>
 struct agg_group<min_agg_op, AggVarT> : simple_combiner<AggVarT> {
 
   template<typename AggVarTU>
-  agg_group<min_agg_op, AggVarT>(AggVarTU &&first_event)
+  agg_group(AggVarTU &&first_event)
       : simple_combiner<AggVarT>(std::forward<AggVarTU>(first_event)) {}
 
   template<typename AggVarTU>
@@ -69,7 +69,7 @@ struct agg_group<sum_agg_op, AggVarT> : simple_combiner<AggVarT> {
   static_assert(is_number_type<AggVarT>,
                 "sum aggregation only for number types");
 
-  agg_group<sum_agg_op, AggVarT>(AggVarT first_event)
+  agg_group(AggVarT first_event)
       : simple_combiner<AggVarT>(first_event) {}
 
   void add_event(AggVarT val) { this->res_ += val; }
@@ -80,7 +80,7 @@ struct agg_group<cnt_agg_op, AggVarT> {
   using ResT = std::int64_t;
 
   template<typename AggVarTU>
-  agg_group<cnt_agg_op, AggVarT>(AggVarTU &&) : counter_(1) {}
+  agg_group(AggVarTU &&) : counter_(1) {}
 
   template<typename AggVarTU>
   void add_event(AggVarTU &&) {
@@ -99,7 +99,7 @@ struct agg_group<avg_agg_op, AggVarT> {
 
   using ResT = double;
 
-  agg_group<avg_agg_op, AggVarT>(AggVarT first_event)
+  agg_group(AggVarT first_event)
       : sum_(first_event), counter_(1) {}
 
   void add_event(AggVarT val) {

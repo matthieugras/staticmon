@@ -1,0 +1,1 @@
+LET P(a,d,b,c) = (LET P(c,d,a,b) = (P(b,d) AND P(a,c) AND R()) IN P(a,b,c,d)) IN P(b,a,d,c)

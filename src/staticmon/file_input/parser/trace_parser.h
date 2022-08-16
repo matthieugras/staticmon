@@ -53,7 +53,7 @@ public:
     if (!parsed_db || (parsed_db.error_count() > 0))
       throw std::runtime_error("failed to parse timestamped database");
     assert(parsed_db.has_value());
-    return parsed_db.value();
+    return std::move(parsed_db).value();
   }
 
 private:
@@ -100,8 +100,6 @@ private:
   };
 
   struct discard_tup_list {
-    // static constexpr auto whitespace = dsl::ascii::blank /
-    // dsl::ascii::newline;
     RULE dsl::list(dsl::peek_not(dsl::ascii::alpha_digit_underscore /
                                  dsl::semicolon) >>
                    dsl::p<discard_tuple>);
@@ -114,10 +112,7 @@ private:
     VALUE lexy::as_string<res_type>;
   };
 
-  struct named_arg_tup_list
-      : lexy::scan_production<std::optional<arg_tup_ty>> /*,
-         lexy::token_production*/
-  {
+  struct named_arg_tup_list : lexy::scan_production<std::optional<arg_tup_ty>> {
 
     template<typename Context, typename Reader>
     static void parse_event(lexy::rule_scanner<Context, Reader> &scanner,
@@ -133,7 +128,7 @@ private:
           const auto *fst = lexeme.data(), *lst = fst + lexeme.size();
           std::int64_t int_val;
           auto [new_ptr, ec] = std::from_chars(fst, lst, int_val);
-          if (ec != std::errc() /* || new_ptr != lst */) {
+          if (ec != std::errc()) {
             scanner.fatal_error(invalid_integer{},
                                 scanner.position() - lexeme.size(),
                                 scanner.position());
@@ -144,7 +139,7 @@ private:
           const auto *fst = lexeme.data(), *lst = fst + lexeme.size();
           double double_val;
           auto [new_ptr, ec] = std::from_chars(fst, lst, double_val);
-          if (ec != std::errc() /* || new_ptr != lst */) {
+          if (ec != std::errc()) {
             scanner.fatal_error(invalid_double{},
                                 scanner.position() - lexeme.size(),
                                 scanner.position());

@@ -122,7 +122,7 @@ withGenerateFormula c =
         s = d </> "out.sig"
         base = d </> "out"
      in runResourceT
-          ( run "gen_fma" ["-output", base, "-past_only", "-size", "3"] >>= \case
+          ( run "gen_fma" ["-output", base, "-size", "4", "-aggr"] >>= \case
               Left outerr -> do
                 newname <- RD.lift $ copyErrorToLogdir outerr
                 RD.lift . withGlobLk $
@@ -142,12 +142,12 @@ withGenerateLogAndFormula c =
   withGenerateFormula $ \s f -> withGeneratedLog s $ \l ->
     c s f l
 
-reportErrorWithGeneratedFormula outerr s f l = do
-  outdir <- getLogDir >>= makeTmpDirIn
-  mapM_ (`cp` outdir) [outerr, s, f, l]
-  withGlobLk $
-    echoErr $ "failed to run monpoly with generated formula, saved in: " +| outdir |+ ""
-  error "fatal error"
+-- reportErrorWithGeneratedFormula outerr s f l = do
+--   outdir <- getLogDir >>= makeTmpDirIn
+--   mapM_ (`cp` outdir) [outerr, s, f, l]
+--   withGlobLk $
+--     echoErr $ "failed to run monpoly with generated formula, saved in: " +| outdir |+ ""
+--   error "fatal error"
 
 isIntervalError outerr = do
   content <- liftIO $ T.readFile outerr
@@ -161,8 +161,8 @@ withGoodFormula c =
       foundGoodFormula <-
         runResourceT $
           transFlagsResource (prepareAndRunMonitor monpoly (s, f, l)) >>= \case
-            Left outerr ->
-              RD.lift $ reportErrorWithGeneratedFormula outerr s f l
+            Left _ -> return False
+            -- RD.lift $ reportErrorWithGeneratedFormula outerr s f l
             Right outf -> do
               sz <- liftIO . withFile outf ReadMode $ hFileSize
               if sz == 0

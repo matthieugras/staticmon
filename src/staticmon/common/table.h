@@ -18,7 +18,10 @@ using namespace boost::mp11;
 template<typename... Args>
 using table = absl::flat_hash_set<std::tuple<Args...>>;
 
-inline auto unit_table() {
+template<typename T>
+using tab_t_of_row_t = mp_rename<T, table>;
+
+inline table<> unit_table() {
   table_util::table<> tab;
   tab.emplace();
   return tab;
@@ -31,8 +34,12 @@ table<T> singleton_table(T &&val) {
   return tab;
 }
 
-template<typename T>
-using tab_t_of_row_t = mp_rename<T, table>;
+template<typename Row>
+tab_t_of_row_t<Row> single_row_table(Row &&r) {
+  tab_t_of_row_t<Row> tab;
+  tab.emplace(std::forward<Row>(r));
+  return tab;
+}
 
 template<typename L1, typename L2, typename T1, typename T2>
 struct join_info;
@@ -68,14 +75,14 @@ namespace detail {
   }
 
   template<typename Idxs, typename... Args>
-  auto make_anti_join_set(table<Args...> &t) {
+  auto make_anti_join_set(const table<Args...> &t) {
     using T = std::tuple<Args...>;
     using ResTuple = mp_apply_idxs<T, Idxs>;
     using AJoinSet = absl::flat_hash_set<ResTuple>;
     AJoinSet ajset;
     ajset.reserve(t.size());
     for (const auto &row : t)
-      ajset.emplace(project_row<Idxs>(std::move(row)));
+      ajset.emplace(project_row<Idxs>(row));
     return ajset;
   }
 
@@ -237,7 +244,7 @@ struct anti_join_info {
 };
 
 template<typename L1, typename L2, typename... Args1, typename... Args2>
-auto table_anti_join(const table<Args1...> &tab1, table<Args2...> &tab2) {
+auto table_anti_join(const table<Args1...> &tab1, const table<Args2...> &tab2) {
   using T1 = std::tuple<Args1...>;
   using T2 = std::tuple<Args2...>;
   using res_tab_t = table<Args1...>;
@@ -246,7 +253,7 @@ auto table_anti_join(const table<Args1...> &tab1, table<Args2...> &tab2) {
                 "not a valid antijoin");
   using proj_mask1 = typename jinfo::l1_common;
   using proj_mask2 = typename jinfo::l2_common;
-  auto jset = detail::make_anti_join_set<proj_mask2>(std::move(tab2));
+  auto jset = detail::make_anti_join_set<proj_mask2>(tab2);
   res_tab_t res;
   for (const auto &row : tab1) {
     auto proj_r = project_row<proj_mask1>(row);

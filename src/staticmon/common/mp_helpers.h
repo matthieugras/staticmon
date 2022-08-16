@@ -18,6 +18,90 @@ using remove_cv_refs_t = mp_transform<std::remove_cvref_t, mp_list<T...>>;
 template<typename T1, typename T2>
 using mp_not_same = mp_not<std::is_same<T1, T2>>;
 
+template<typename L>
+struct mp_group_by_snd_impl {
+  template<typename T, typename U>
+  using mp_less_snd = mp_less<mp_second<T>, mp_second<U>>;
+
+  template<typename VO, typename TO>
+  struct fold_fn_impl {
+    template<typename V, typename T>
+    using new_pair_branch =
+      mp_push_back<V, mp_list<mp_second<T>, mp_list<mp_first<T>>>>;
+
+    template<typename V, typename T>
+    struct old_pair_branch_impl {
+      using v_back = mp_back<V>;
+      using type =
+        mp_push_back<mp_pop_back<V>,
+                     mp_list<mp_first<v_back>,
+                             mp_push_back<mp_second<v_back>, mp_first<T>>>>;
+    };
+
+    template<typename V, typename T>
+    using old_pair_branch = typename old_pair_branch_impl<V, T>::type;
+
+    template<typename V, typename T>
+    using not_empty_branch =
+      mp_if<mp_not<std::is_same<mp_second<T>, mp_first<mp_back<V>>>>,
+            new_pair_branch<V, T>, old_pair_branch<V, T>>;
+
+    using type = mp_eval_if<mp_empty<VO>, new_pair_branch<VO, TO>,
+                            not_empty_branch, VO, TO>;
+  };
+
+  template<typename V, typename T>
+  using fold_fn = typename fold_fn_impl<V, T>::type;
+
+  // Assuming that sort is stable
+  using type = mp_fold<mp_sort<L, mp_less_snd>, mp_list<>, fold_fn>;
+};
+
+template<typename L>
+using mp_group_by_snd = typename mp_group_by_snd_impl<L>::type;
+
+template<typename L>
+struct mp_group_by_fst_impl {
+  template<typename T, typename U>
+  using mp_less_fst = mp_less<mp_first<T>, mp_first<U>>;
+
+  template<typename VO, typename TO>
+  struct fold_fn_impl {
+    template<typename V, typename T>
+    using new_pair_branch =
+      mp_push_back<V, mp_list<mp_first<T>, mp_list<mp_second<T>>>>;
+
+    template<typename V, typename T>
+    struct old_pair_branch_impl {
+      using v_back = mp_back<V>;
+      using type =
+        mp_push_back<mp_pop_back<V>,
+                     mp_list<mp_first<v_back>,
+                             mp_push_back<mp_second<v_back>, mp_second<T>>>>;
+    };
+
+    template<typename V, typename T>
+    using old_pair_branch = typename old_pair_branch_impl<V, T>::type;
+
+    template<typename V, typename T>
+    using not_empty_branch =
+      mp_if<mp_not<std::is_same<mp_first<T>, mp_first<mp_back<V>>>>,
+            new_pair_branch<V, T>, old_pair_branch<V, T>>;
+
+    using type = mp_eval_if<mp_empty<VO>, new_pair_branch<VO, TO>,
+                            not_empty_branch, VO, TO>;
+  };
+
+  template<typename V, typename T>
+  using fold_fn = typename fold_fn_impl<V, T>::type;
+
+  // Assuming that sort is stable
+  using type = mp_fold<mp_sort<L, mp_less_fst>, mp_list<>, fold_fn>;
+};
+
+template<typename L>
+using mp_group_by_fst = typename mp_group_by_fst_impl<L>::type;
+
 template<typename L, typename V>
 struct mp_find_partial_impl {
   using type = mp_find<L, V>;
