@@ -10,7 +10,7 @@
 template<typename T>
 auto make_empty_tabs(std::size_t n) {
   using res_tab_t = table_util::tab_t_of_row_t<T>;
-  std::vector<res_tab_t> res;
+  std::vector<std::optional<res_tab_t>> res;
   res.reserve(n);
   for (std::size_t i = 0; i < n; ++i)
     res.emplace_back();
@@ -19,7 +19,7 @@ auto make_empty_tabs(std::size_t n) {
 
 inline auto make_unit_tabs(std::size_t n) {
   using res_tab_t = table_util::table<>;
-  std::vector<res_tab_t> res;
+  std::vector<std::optional<res_tab_t>> res;
   res.reserve(n);
   for (std::size_t i = 0; i < n; ++i)
     res.emplace_back(table_util::unit_table());
@@ -29,7 +29,7 @@ inline auto make_unit_tabs(std::size_t n) {
 template<typename T>
 auto make_singleton_table(const T &val, std::size_t n) {
   using res_tab_t = table_util::table<T>;
-  std::vector<res_tab_t> res;
+  std::vector<std::optional<res_tab_t>> res;
   res.reserve(n);
   for (std::size_t i = 0; i < n; ++i) {
     T val_cp = val;
@@ -54,12 +54,15 @@ struct mneg {
 
   auto eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
-    std::vector<table_util::table<>> res_tabs;
+
+    std::vector<std::optional<table_util::table<>>> res_tabs;
     for (const auto &tab : rec_tabs) {
-      if (tab.empty())
-        res_tabs.emplace_back(table_util::unit_table());
-      else
+      if (tab) {
+        assert(!tab->empty());
         res_tabs.emplace_back();
+      } else {
+        res_tabs.emplace_back(table_util::unit_table());
+      }
     }
     return res_tabs;
   }

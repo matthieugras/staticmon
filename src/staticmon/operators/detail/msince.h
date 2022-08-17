@@ -1,6 +1,7 @@
 #pragma once
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#include <algorithm>
 #include <boost/container/devector.hpp>
 #include <boost/mp11.hpp>
 #include <iterator>
@@ -19,7 +20,7 @@ using tuple_buf = absl::flat_hash_map<std::tuple<Args...>, std::size_t>;
 
 template<typename T>
 using table_buf = boost::container::devector<
-  std::pair<std::size_t, table_util::tab_t_of_row_t<T>>>;
+  std::pair<std::size_t, std::optional<table_util::tab_t_of_row_t<T>>>>;
 
 struct no_aggregation;
 
@@ -32,47 +33,53 @@ struct aggregation_mixin {
                 "invalid aggregation mixin");
 };
 
-template<typename L2, typename T2, typename... AggVals>
-struct aggregation_mixin<true, agg_info<AggVals...>, L2, T2> {
-  using Aggregation = addonlyaggregation<L2, T2, AggVals...>;
-  using tuple_buf_t = mp_rename<T2, tuple_buf>;
-
+template<typename Aggregation>
+struct aggregation_mixin_base {
   using ResL = typename Aggregation::ResL;
   using ResT = typename Aggregation::ResT;
+  using res_tab_t = typename Aggregation::res_tab_t;
 
-  auto produce_result() { return agg_.template finalize_table<false>(); }
+  std::optional<res_tab_t> produce_result() {
+    auto tab = agg_.template finalize_table<false>();
+    if (tab.empty())
+      return std::nullopt;
+    else
+      return std::move(tab);
+  }
+
+  Aggregation agg_;
+};
+
+template<typename L2, typename T2, typename... AggVals>
+struct aggregation_mixin<true, agg_info<AggVals...>, L2, T2>
+    : aggregation_mixin_base<addonlyaggregation<L2, T2, AggVals...>> {
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
 
   void tuple_in_update(const T2 &e, size_t) {
     if (rows_in_result.emplace(e).second) {
-      agg_.add_row(e);
+      this->agg_.add_row(e);
       return;
     }
   }
 
-  Aggregation agg_;
   absl::flat_hash_set<T2> rows_in_result;
 };
 
 template<typename L2, typename T2, typename... AggVals>
-struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
-  using Aggregation = aggregationwithremove<L2, T2, AggVals...>;
+struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2>
+    : aggregation_mixin_base<aggregationwithremove<L2, T2, AggVals...>> {
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
-
-  using ResL = typename Aggregation::ResL;
-  using ResT = typename Aggregation::ResT;
-
-  auto produce_result() { return agg_.template finalize_table<false>(); }
 
   void tuple_in_update(const T2 &e, size_t ts) {
     if (tuple_in.insert_or_assign(e, ts).second) {
-      agg_.add_row(e);
+      this->agg_.add_row(e);
       return;
     }
   }
 
   template<typename TupleInIt>
   void tuple_in_erase(TupleInIt it) {
-    agg_.remove_row(it->first);
+    this->agg_.remove_row(it->first);
     tuple_in.erase(it);
   }
 
@@ -80,7 +87,7 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
   void tuple_in_erase_if(Pred pred) {
     absl::erase_if(tuple_in, [this, pred](const auto &tup) {
       if (pred(tup)) {
-        agg_.remove_row(tup.first);
+        this->agg_.remove_row(tup.first);
         return true;
       } else {
         return false;
@@ -90,10 +97,9 @@ struct aggregation_mixin<false, agg_info<AggVals...>, L2, T2> {
 
   void tuple_in_clear() {
     tuple_in.clear();
-    agg_ = Aggregation();
+    this->agg_.clear();
   }
 
-  Aggregation agg_;
   tuple_buf_t tuple_in;
 };
 
@@ -104,12 +110,15 @@ struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
   using tuple_buf_t = mp_rename<T2, tuple_buf>;
   using res_tab_t = table_util::tab_t_of_row_t<T2>;
 
-  res_tab_t produce_result() {
+  std::optional<res_tab_t> produce_result() {
     res_tab_t tab;
     tab.reserve(tuple_in.size());
     for (auto it = tuple_in.cbegin(); it != tuple_in.cend(); ++it)
       tab.emplace(it->first);
-    return tab;
+    if (tab.empty())
+      return std::nullopt;
+    else
+      return std::move(tab);
   }
 
   void tuple_in_update(const T2 &e, size_t ts) {
@@ -166,18 +175,22 @@ requires(!Interval::is_infinite) struct interval_bnd_mixin<is_once, AggInfo,
       if (Interval::leq_upper(ts - old_ts))
         break;
       auto &tab = data_in.front();
-      for (const auto &e : tab.second) {
-        auto in_it = this->tuple_in.find(e);
-        if (in_it != this->tuple_in.end() && in_it->second == tab.first)
-          this->tuple_in_erase(in_it);
-        drop_tuple_from_all_data(e);
+      if (tab.second) {
+        for (const auto &e : *tab.second) {
+          auto in_it = this->tuple_in.find(e);
+          if (in_it != this->tuple_in.end() && in_it->second == tab.first)
+            this->tuple_in_erase(in_it);
+          drop_tuple_from_all_data(e);
+        }
       }
     }
     for (;
          !data_prev.empty() && Interval::gt_upper(ts - data_prev.front().first);
          data_prev.pop_front()) {
-      for (const auto &e : data_prev.front().second)
-        drop_tuple_from_all_data(e);
+      if (data_prev.front().second) {
+        for (const auto &e : *data_prev.front().second)
+          drop_tuple_from_all_data(e);
+      }
     }
   }
 
@@ -220,10 +233,12 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
       assert(old_ts <= ts);
       if (Interval::lt_lower(ts - old_ts))
         break;
-      for (const auto &e : latest.second) {
-        auto since_it = this->tuple_since.find(e);
-        if (since_it != this->tuple_since.end() && since_it->second <= old_ts)
-          this->tuple_in_update(e, old_ts);
+      if (latest.second) {
+        for (const auto &e : *latest.second) {
+          auto since_it = this->tuple_since.find(e);
+          if (since_it != this->tuple_since.end() && since_it->second <= old_ts)
+            this->tuple_in_update(e, old_ts);
+        }
       }
       if constexpr (!Interval::is_infinite) {
         assert(this->data_in.empty() || old_ts >= this->data_in.back().first);
@@ -232,15 +247,19 @@ struct base_mixin : interval_bnd_mixin<is_once, AggInfo, Interval, L2, T2> {
     }
   }
 
-  void add_new_table(tab2_t &tab_r) {
-    for (const auto &e : tab_r) {
-      this->tuple_since.try_emplace(e, nts_);
-      if constexpr (!Interval::is_infinite)
-        this->all_data_counted[e]++;
+  void add_new_table(std::optional<tab2_t> &tab_r) {
+    if (tab_r) {
+      for (const auto &e : *tab_r) {
+        this->tuple_since.try_emplace(e, nts_);
+        if constexpr (!Interval::is_infinite)
+          this->all_data_counted[e]++;
+      }
     }
     if constexpr (Interval::contains(0)) {
-      for (const auto &e : tab_r)
-        this->tuple_in_update(e, nts_);
+      if (tab_r) {
+        for (const auto &e : *tab_r)
+          this->tuple_in_update(e, nts_);
+      }
       if constexpr (!Interval::is_infinite) {
         assert(this->data_in.empty() || nts_ >= this->data_in.back().first);
         this->data_in.emplace_back(nts_, std::move(tab_r));
@@ -276,38 +295,36 @@ struct since_impl
   using tab2_t = table_util::tab_t_of_row_t<T2>;
   using project_idxs = table_util::comp_common_idx<L2, L1>;
 
-  void join(tab1_t &tab1) {
-    if (tab1.empty()) {
+  void join(std::optional<tab1_t> &tab1) {
+    if (!tab1) {
       if constexpr (!left_negated) {
         this->tuple_since.clear();
         this->tuple_in_clear();
       }
       return;
     }
+    assert(!tab1->empty());
     auto erase_cond = [&tab1](const auto &tup) {
       if constexpr (left_negated)
-        return tab1.contains(project_row<project_idxs>(tup.first));
+        return tab1->contains(project_row<project_idxs>(tup.first));
       else
-        return !tab1.contains(project_row<project_idxs>(tup.first));
+        return !tab1->contains(project_row<project_idxs>(tup.first));
     };
     absl::erase_if(this->tuple_since, erase_cond);
     this->tuple_in_erase_if(erase_cond);
   }
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_res1 = f1_.eval(db, ts);
     auto rec_res2 = f2_.eval(db, ts);
+    check_no_some_empty_tab(rec_res1);
+    check_no_some_empty_tab(rec_res2);
     this->update_ts_buf(ts);
-    std::vector<res_tab_t> res;
-    static_assert(std::is_same_v<decltype(rec_res1), std::vector<rec_tab1_t>>,
-                  "unexpected table type");
-    static_assert(std::is_same_v<decltype(rec_res2), std::vector<rec_tab2_t>>,
-                  "unexpected table type");
+    std::vector<std::optional<res_tab_t>> res;
     f1_buf_.insert(f1_buf_.end(), std::make_move_iterator(rec_res1.begin()),
                    std::make_move_iterator(rec_res1.end()));
     f2_buf_.insert(f2_buf_.end(), std::make_move_iterator(rec_res2.begin()),
                    std::make_move_iterator(rec_res2.end()));
-
     for (;;) {
       bool has_l = !f1_buf_.empty(), has_r = !f2_buf_.empty();
       if (has_l && !has_r) {
@@ -341,8 +358,8 @@ struct since_impl
 
   MFormula1 f1_;
   MFormula2 f2_;
-  boost::container::devector<tab1_t> f1_buf_;
-  boost::container::devector<tab2_t> f2_buf_;
+  boost::container::devector<std::optional<tab1_t>> f1_buf_;
+  boost::container::devector<std::optional<tab2_t>> f2_buf_;
   bool skew_ = false;
 };
 
@@ -360,12 +377,11 @@ struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
   using ResT = typename Base::ResT;
   using res_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_tabs), std::vector<rec_tab_t>>,
-                  "unexpected table type");
+    check_no_some_empty_tab(rec_tabs);
     this->update_ts_buf(ts);
-    std::vector<res_tab_t> res;
+    std::vector<std::optional<res_tab_t>> res;
     res.reserve(rec_tabs.size());
     auto it = rec_tabs.begin(), eit = rec_tabs.end();
     if (it != eit && skew_) {

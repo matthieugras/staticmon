@@ -69,8 +69,7 @@ struct agg_group<sum_agg_op, AggVarT> : simple_combiner<AggVarT> {
   static_assert(is_number_type<AggVarT>,
                 "sum aggregation only for number types");
 
-  agg_group(AggVarT first_event)
-      : simple_combiner<AggVarT>(first_event) {}
+  agg_group(AggVarT first_event) : simple_combiner<AggVarT>(first_event) {}
 
   void add_event(AggVarT val) { this->res_ += val; }
 };
@@ -99,8 +98,7 @@ struct agg_group<avg_agg_op, AggVarT> {
 
   using ResT = double;
 
-  agg_group(AggVarT first_event)
-      : sum_(first_event), counter_(1) {}
+  agg_group(AggVarT first_event) : sum_(first_event), counter_(1) {}
 
   void add_event(AggVarT val) {
     sum_ += val;
@@ -142,9 +140,11 @@ struct grouped_state {
       res.emplace(std::tuple_cat(
         group, std::forward_as_tuple(group_state.finalize_group())));
     if constexpr (clear_groups)
-      groups_.clear();
+      clear();
     return res;
   }
+
+  void clear() { groups_.clear(); }
 
   absl::flat_hash_map<GroupVarT, GroupType> groups_;
 };
@@ -169,9 +169,11 @@ struct grouped_state<GroupType, std::tuple<>, AggVarT> {
       return table_util::singleton_table(ResVarT{});
     auto res = table_util::singleton_table(group_->finalize_group());
     if constexpr (clear_groups)
-      group_.reset();
+      clear();
     return res;
   }
+
+  void clear() { group_.reset(); }
 
   std::optional<GroupType> group_;
 };
@@ -364,16 +366,24 @@ struct maggregation
   using Base = typename maggregation::aggregation_impl;
   using res_tab_t = table_util::tab_t_of_row_t<typename Base::ResT>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
-    std::vector<res_tab_t> res;
+    std::vector<std::optional<res_tab_t>> res;
     res.reserve(rec_tabs.size());
     for (auto &tab : rec_tabs) {
-      for (auto it = tab.cbegin(), last = tab.cend(); it != last;) {
-        auto node = tab.extract(it++);
-        this->add_row(node.value());
+      if (tab) {
+        for (auto it = tab->cbegin(), last = tab->cend(); it != last;) {
+          auto node = tab->extract(it++);
+          this->add_row(node.value());
+        }
+      } else {
+        assert(!tab->empty());
       }
-      res.emplace_back(this->template finalize_table<true>());
+      auto res_tab = this->template finalize_table<true>();
+      if (res_tab.empty())
+        res.emplace_back();
+      else
+        res.emplace_back(std::move(res_tab));
     }
     return res;
   }

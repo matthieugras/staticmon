@@ -177,23 +177,29 @@ struct mfusedsimpleop {
   using res_tab_t = mp_rename<ResT, table_util::table>;
   using rec_tab_t = mp_rename<formula_res_t, table_util::table>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_res = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_res), std::vector<rec_tab_t>>,
-                  "table type unexpected");
-    std::vector<res_tab_t> res;
+    std::vector<std::optional<res_tab_t>> res;
     res.reserve(rec_res.size());
     for (auto &rec_tab : rec_res) {
+      if (!rec_tab) {
+        res.emplace_back();
+        continue;
+      }
+      assert(!rec_tab->empty());
       res_tab_t tab;
-      tab.reserve(rec_tab.size());
-      for (const auto &row : rec_tab) {
+      tab.reserve(rec_tab->size());
+      for (const auto &row : *rec_tab) {
         auto row_new = Ops::template eval<formula_res_l>(row);
         static_assert(std::is_same_v<decltype(row_new), std::optional<ResT>>,
                       "unexpected row type");
         if (row_new)
           tab.emplace(std::move(*row_new));
       }
-      res.emplace_back(std::move(tab));
+      if (tab.empty())
+        res.emplace_back();
+      else
+        res.emplace_back(std::move(tab));
     }
     return res;
   }

@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/mp11.hpp>
 #include <cstdint>
+#include <optional>
 #include <staticmon/common/mp_helpers.h>
 #include <staticmon/common/table.h>
 #include <staticmon/operators/detail/operator_types.h>
@@ -129,8 +130,8 @@ struct builtin_pred {
     return (true && ... && (sat_var_group(row, Groups{})));
   }
 
-  std::vector<res_tab_t> eval(database &, const ts_list &ts) {
-    std::vector<res_tab_t> res;
+  std::vector<std::optional<res_tab_t>> eval(database &, const ts_list &ts) {
+    std::vector<std::optional<res_tab_t>> res;
     res.reserve(ts.size());
     for (std::size_t t : ts) {
       auto row = impl_.eval(t);
@@ -194,13 +195,13 @@ struct mpredicate {
     return (true && ... && (sat_var_group(e, Groups{})));
   }
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     std::size_t n = ts.size();
     const auto &cdb = db;
     auto it = cdb.find(PredId);
     if (it == cdb.end())
-      return std::vector<res_tab_t>(n);
-    std::vector<res_tab_t> res;
+      return std::vector<std::optional<res_tab_t>>(n);
+    std::vector<std::optional<res_tab_t>> res;
     res.reserve(n);
     const auto &evll = it->second;
     for (const auto &evl : evll) {
@@ -210,7 +211,10 @@ struct mpredicate {
             sat_var_constraints(ev, var_non_trivial_groups{}))
           tab.emplace(project_event_vars(ev, ResT{}, var_idxs{}));
       }
-      res.emplace_back(std::move(tab));
+      if (tab.empty())
+        res.emplace_back();
+      else
+        res.emplace_back(std::move(tab));
     }
     return res;
   }

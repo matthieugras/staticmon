@@ -42,43 +42,66 @@ struct bin_rel_op {
   using rec_tab1_t = table_util::tab_t_of_row_t<T1>;
   using rec_tab2_t = table_util::tab_t_of_row_t<T2>;
 
-  std::vector<res_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_res1 = f1_.eval(db, ts);
     auto rec_res2 = f2_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(rec_res1), std::vector<rec_tab1_t>>,
-                  "left subformula has unexpected type");
-    static_assert(std::is_same_v<decltype(rec_res2), std::vector<rec_tab2_t>>,
-                  "left subformula has unexpected type");
     if constexpr (std::is_same_v<Tag, and_tag>) {
       return buf_.update_and_reduce(
-        rec_res1, rec_res2, [](rec_tab1_t &tab1, rec_tab2_t &tab2) {
-          auto joined = table_util::table_join<L1, L2>(tab1, tab2);
-          static_assert(std::is_same_v<decltype(joined), res_tab_t>,
-                        "unexpected join return type");
-          return joined;
+        rec_res1, rec_res2,
+        [](std::optional<rec_tab1_t> &tab1,
+           std::optional<rec_tab2_t> &tab2) -> std::optional<res_tab_t> {
+          if (!tab1 || !tab2)
+            return std::nullopt;
+          assert(!tab1->empty() && !tab2->empty());
+          auto joined = table_util::table_join<L1, L2>(*tab1, *tab2);
+          if (joined.empty())
+            return std::nullopt;
+          else
+            return std::move(joined);
         });
     } else if constexpr (std::is_same_v<Tag, or_tag>) {
       return buf_.update_and_reduce(
-        rec_res1, rec_res2, [](rec_tab1_t &tab1, rec_tab2_t &tab2) {
-          auto unioned = table_util::table_union<L1, L2>(std::move(tab1), tab2);
-          static_assert(std::is_same_v<decltype(unioned), res_tab_t>,
-                        "unexpected union return type");
-          return unioned;
+        rec_res1, rec_res2,
+        [](std::optional<rec_tab1_t> &tab1,
+           std::optional<rec_tab2_t> &tab2) -> std::optional<res_tab_t> {
+          if (!tab2)
+            return std::move(tab1);
+          assert(!tab2->empty());
+          res_tab_t unioned;
+          if (!tab1) {
+            unioned = table_util::table_union<L1, L2>(rec_tab1_t(), *tab2);
+          } else {
+            assert(!tab1->empty());
+            unioned = table_util::table_union<L1, L2>(std::move(*tab1), *tab2);
+          }
+          if (unioned.empty())
+            return std::nullopt;
+          else
+            return std::move(unioned);
         });
     } else if constexpr (std::is_same_v<Tag, and_not_tag>) {
       return buf_.update_and_reduce(
-        rec_res1, rec_res2, [](const rec_tab1_t &tab1, const rec_tab2_t &tab2) {
-          auto ajoined = table_util::table_anti_join<L1, L2>(tab1, tab2);
-          static_assert(std::is_same_v<decltype(ajoined), res_tab_t>,
-                        "unexpected antijoin return type");
-          return ajoined;
+        rec_res1, rec_res2,
+        [](std::optional<rec_tab1_t> &tab1,
+           std::optional<rec_tab2_t> &tab2) -> std::optional<res_tab_t> {
+          if (!tab1)
+            return std::nullopt;
+          assert(!tab1->empty());
+          if (!tab2)
+            return std::move(*tab1);
+          assert(!tab2->empty());
+          auto ajoined = table_util::table_anti_join<L1, L2>(*tab1, *tab2);
+          if (ajoined.empty())
+            return std::nullopt;
+          else
+            return std::move(ajoined);
         });
     } else {
       static_assert(always_false_v<Tag>, "cannot happen");
     }
   }
 
-  bin_op_buffer<rec_tab1_t, rec_tab2_t> buf_;
+  bin_op_buffer<std::optional<rec_tab1_t>, std::optional<rec_tab2_t>> buf_;
   MFormula1 f1_;
   MFormula2 f2_;
 };

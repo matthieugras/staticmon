@@ -1,6 +1,7 @@
 #pragma once
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#include <algorithm>
 #include <boost/mp11.hpp>
 #include <fmt/format.h>
 #include <iostream>
@@ -11,6 +12,12 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+template<typename S>
+void check_no_some_empty_tab(const S &s) {
+  assert(std::all_of(s.begin(), s.end(),
+                     [](const auto &t) { return !t || !t->empty(); }));
+}
 
 namespace table_util {
 using namespace boost::mp11;
@@ -188,15 +195,11 @@ auto table_join(table<Args1...> &tab1, table<Args2...> &tab2) {
   using T1 = std::tuple<Args1...>;
   using T2 = std::tuple<Args2...>;
   using jinfo = join_info<L1, L2, T1, T2>;
-  using res_tab_t =
-    tab_t_of_row_t<typename join_result_info<L1, L2, T1, T2>::ResT>;
   static constexpr bool no_common_cols =
     mp_empty<typename jinfo::l1_common>::value;
   static constexpr bool l_no_cols = sizeof...(Args1) == 0;
   static constexpr bool r_no_cols = sizeof...(Args2) == 0;
 
-  if (tab1.empty() || tab2.empty())
-    return res_tab_t();
   if constexpr (l_no_cols) {
     return std::move(tab2);
   } else if constexpr (r_no_cols) {

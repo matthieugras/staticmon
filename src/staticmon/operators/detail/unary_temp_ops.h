@@ -17,7 +17,7 @@ struct mnext {
   using interval = minterval<LBound, UBound>;
   using rec_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  std::vector<rec_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<rec_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
     past_ts_.insert(past_ts_.end(), ts.begin(), ts.end());
     if (rec_tabs.empty())
@@ -27,7 +27,7 @@ struct mnext {
       tabs_it++;
       is_first_ = false;
     }
-    std::vector<rec_tab_t> res_tabs;
+    std::vector<std::optional<rec_tab_t>> res_tabs;
     res_tabs.reserve(rec_tabs.size());
     for (; tabs_it != rec_tabs.end(); past_ts_.pop_front(), ++tabs_it) {
       assert(past_ts_.size() > 1 && past_ts_[0] <= past_ts_[1]);
@@ -52,14 +52,14 @@ struct mprev {
   using interval = minterval<LBound, UBound>;
   using rec_tab_t = table_util::tab_t_of_row_t<ResT>;
 
-  std::vector<rec_tab_t> eval(database &db, const ts_list &ts) {
+  std::vector<std::optional<rec_tab_t>> eval(database &db, const ts_list &ts) {
     auto rec_tabs = f_.eval(db, ts);
     past_ts_.insert(past_ts_.end(), ts.begin(), ts.end());
     if (is_first_ && ts.empty()) {
       assert(rec_tabs.empty());
       return rec_tabs;
     }
-    std::vector<rec_tab_t> res_tabs;
+    std::vector<std::optional<rec_tab_t>> res_tabs;
     res_tabs.reserve(rec_tabs.size() + 1);
     auto tabs_it = rec_tabs.begin();
     if (is_first_) {
@@ -68,11 +68,11 @@ struct mprev {
     }
     if (past_ts_.size() >= 2) {
       if (buf_) {
-        std::optional<rec_tab_t> taken_val;
+        std::optional<std::optional<rec_tab_t>> taken_val;
         buf_.swap(taken_val);
         assert(past_ts_[1] >= past_ts_[0]);
         if (interval::contains(past_ts_[1] - past_ts_[0]))
-          res_tabs.push_back(std::move(*taken_val));
+          res_tabs.emplace_back(std::move(*taken_val));
         else
           res_tabs.emplace_back();
         past_ts_.pop_front();
@@ -82,7 +82,7 @@ struct mprev {
            past_ts_.pop_front(), ++tabs_it) {
         assert(past_ts_[1] >= past_ts_[0]);
         if (interval::contains(past_ts_[1] - past_ts_[0]))
-          res_tabs.push_back(std::move(*tabs_it));
+          res_tabs.emplace_back(std::move(*tabs_it));
         else
           res_tabs.emplace_back();
       }
@@ -100,6 +100,6 @@ struct mprev {
 
   MFormula f_;
   boost::container::devector<std::size_t> past_ts_;
-  std::optional<rec_tab_t> buf_;
+  std::optional<std::optional<rec_tab_t>> buf_;
   bool is_first_ = true;
 };

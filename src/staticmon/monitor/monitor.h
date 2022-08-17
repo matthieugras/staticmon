@@ -5,7 +5,6 @@
 #include <staticmon/operators/operators.h>
 #include <type_traits>
 #include <vector>
-#include <cstdint>
 
 inline constexpr size_t MAXIMUM_TIMESTAMP = std::numeric_limits<size_t>::max();
 
@@ -32,12 +31,14 @@ struct monitor {
       max_tp_++;
     }
     auto sats = f_.eval(db, ts);
-    static_assert(std::is_same_v<decltype(sats), std::vector<rec_tab_t>>,
-                  "unexpected table type");
     std::size_t new_curr_tp = curr_tp_;
     std::size_t n = sats.size();
     for (std::size_t i = 0; i < n; ++i, ++new_curr_tp) {
-      auto output_tab = make_verdicts(sats[i]);
+      std::vector<ResT> output_tab;
+      if (sats[i]) {
+        assert(!sats[i]->empty());
+        output_tab = make_verdicts(*sats[i]);
+      }
       auto it = tp_ts_map_.find(new_curr_tp);
       if (it->second < MAXIMUM_TIMESTAMP)
         printer_.print_verdict(it->second, new_curr_tp, output_tab);
