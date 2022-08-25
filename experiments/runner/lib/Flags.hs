@@ -15,7 +15,8 @@ data NestedFlags
       }
   | BenchFlags
       { bf_reps :: Int,
-        bf_out :: FilePath
+        bf_out :: FilePath,
+        bf_config :: FilePath
       }
   | RandomTestFlags
       { rt_ub :: Int64,
@@ -91,9 +92,13 @@ benchFlagsParser =
       <*> strOption
         ( long "output_file"
             <> short 'o'
-            <> value "~/out.csv"
+            <> value "out.csv"
             <> showDefault
             <> help "Where to write the measurements"
+        )
+      <*> strOption
+        ( long "bench_config"
+            <> help "Config file for operator benchmarks"
         )
 
 testFlagsParser :: Parser NestedFlags
