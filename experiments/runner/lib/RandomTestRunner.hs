@@ -26,7 +26,6 @@ import Process
     cp,
     cp_r,
     echoErr,
-    makeTmpDirIn,
     mkdir,
     rm_rf,
     run,

@@ -51,7 +51,7 @@ withPrintState !outf !action =
             }
     )
 
-newDb :: Int64 -> OutpS ()
+newDb :: Int -> OutpS ()
 newDb !ts =
   S.get
     >>= ( \OutputState {..} ->
@@ -61,7 +61,7 @@ newDb !ts =
         )
     >> beginLine ts
 
-outputNewEvent :: T.Text -> [EventData] -> OutpS ()
+outputNewEvent :: (Foldable t, Buildable p) => T.Text -> t p -> OutpS ()
 outputNewEvent !pname !dat =
   getOutHandle >>= (S.liftIO . flip TIO.hPutStr ev)
   where
