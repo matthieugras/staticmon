@@ -108,7 +108,7 @@ verifyMonitor args =
     aErr = return . Left
 
 monitors :: [Monitor]
-monitors = [monpoly, verimon, staticmon, cppmon]
+monitors = [monpoly, verimon, staticmon]
 
 monpoly = Monitor {..}
   where
@@ -124,17 +124,17 @@ verimon = Monitor {..}
     runMonitor _ = monitorMonpoly True
     monitorName = "verimon"
 
-cppmon = Monitor {..}
-  where
-    opts s f l =
-      ["--formula", f, "--sig", s, "--log", l]
-    prepareMonitor s f =
-      runKeep "monpoly" ("-cppmon" : monpolyBaseOpts s f)
-    runBenchmark f s _ l =
-      benchmark (runDiscard "cppmon" (opts s f l))
-    runMonitor f s _ l =
-      runKeep "cppmon" (opts s f l)
-    monitorName = "cppmon"
+-- cppmon = Monitor {..}
+--   where
+--     opts s f l =
+--       ["--formula", f, "--sig", s, "--log", l]
+--     prepareMonitor s f =
+--       runKeep "monpoly" ("-cppmon" : monpolyBaseOpts s f)
+--     runBenchmark f s _ l =
+--       benchmark (runDiscard "cppmon" (opts s f l))
+--     runMonitor f s _ l =
+--       runKeep "cppmon" (opts s f l)
+--     monitorName = "cppmon"
 
 staticmon = Monitor {..}
   where

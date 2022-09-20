@@ -1,7 +1,0 @@
-- andoperator:
-    lsize: 100
-    rsize: 50
-    opts:
-      distinct:
-        - 5
-        - 5

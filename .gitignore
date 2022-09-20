@@ -27,3 +27,4 @@ experiments/runner/stderr
 experiments/runner/out.old.mfotl
 experiments/runner/out.old.sig
 experiments/runner/sig
+experiments/runner/config.yaml

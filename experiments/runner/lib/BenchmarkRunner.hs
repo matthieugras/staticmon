@@ -6,6 +6,7 @@ import Data.Aeson
   ( Options (constructorTagModifier, sumEncoding),
     SumEncoding (ObjectWithSingleField),
     defaultOptions,
+    eitherDecodeFileStrict',
   )
 import Data.Aeson.TH (deriveJSON)
 import Data.Char (toLower)
@@ -17,14 +18,12 @@ import Data.Csv
   )
 import Data.Csv.Incremental qualified as Csv
 import Data.Foldable (foldrM)
-import Data.Functor ((<&>))
 import Data.Text qualified as T
 import Data.Text.Lazy.Encoding qualified as TL
 import Data.Text.Lazy.IO qualified as TL
 import Data.Vector qualified as V
-import Data.Yaml (decodeFileThrow)
 import EventGenerators
-  ( OperatorBenchmark (..),
+  ( OperatorBenchmark,
     generateLogForBenchmark,
     getBenchName,
   )
@@ -34,7 +33,7 @@ import Monitors
     monitors,
     prepareAndBenchmarkMonitor,
   )
-import Process (withTmpDir)
+import Process (mkdir, rm_rf)
 import System.FilePath ((</>))
 import UnliftIO (MonadIO (liftIO))
 import UnliftIO.Resource (runResourceT)
@@ -68,43 +67,53 @@ instance ToNamedRecord MeasurementRow where
 instance DefaultOrdered MeasurementRow where
   headerOrder _ = V.fromList ["benchmark", "monitor", "repetition", "time"]
 
-runMonitorBenchmark bench builder = do
-  reps <- RD.ask <&> f_nes_flags <&> bf_reps
-  withTmpDir $ \d ->
-    let log_f = d </> "log"
-        sig_f = d </> "sig"
-        fo_f = d </> "fo"
-     in liftIO (generateLogForBenchmark log_f sig_f fo_f bench)
-          >> foldrM
-            ( \(m, i) builder ->
-                runSingleBenchmark sig_f fo_f log_f m i builder
-            )
-            builder
-            (monitorItPairs reps)
+runMonitorBenchmark bench builder =
+  let name = getBenchName bench
+      runSingleBenchmark s f log_f m i builder = do
+        t <- runResourceT $ prepareAndBenchmarkMonitor m (s, f, log_f)
+        return $
+          builder
+            <> Csv.encodeNamedRecord
+              ( MeasurementRow
+                  { out_monitor = monitorName m,
+                    out_bench_name = name,
+                    out_rep = i,
+                    out_time = t
+                  }
+              )
+   in do
+        reps <- RD.asks (bf_reps . f_nes_flags)
+        outpath <- RD.asks (bf_out . f_nes_flags)
+        let benchpath = outpath </> T.unpack name
+            log_f = benchpath </> "log"
+            sig_f = benchpath </> "sig"
+            fo_f = benchpath </> "fo"
+         in do
+              mkdir benchpath
+              liftIO (generateLogForBenchmark log_f sig_f fo_f bench)
+              foldrM
+                ( \(m, i) builder ->
+                    runSingleBenchmark sig_f fo_f log_f m i builder
+                )
+                builder
+                (monitorItPairs reps)
   where
-    runSingleBenchmark s f log_f m i builder = do
-      t <- runResourceT $ prepareAndBenchmarkMonitor m (s, f, log_f)
-      return $
-        builder
-          <> Csv.encodeNamedRecord
-            ( MeasurementRow
-                { out_monitor = monitorName m,
-                  out_bench_name = getBenchName bench,
-                  out_rep = i,
-                  out_time = t
-                }
-            )
     monitorItPairs reps =
       liftA2 (,) monitors [0 .. (reps - 1)]
 
 runBenchmarks' = do
-  outfile <- RD.asks (bf_out . f_nes_flags)
+  outpath <- RD.asks (bf_out . f_nes_flags)
+  rm_rf outpath
+  mkdir outpath
   confpath <- RD.asks (bf_config . f_nes_flags)
-  OperatorBenchmarks confs <- decodeFileThrow confpath
-  foldrM runMonitorBenchmark mempty confs
-    >>= (liftIO . TL.writeFile outfile)
-      . TL.decodeUtf8
-      . Csv.encodeDefaultOrderedByName
+  econfs <- liftIO $ eitherDecodeFileStrict' confpath
+  case econfs of
+    Left err -> error err
+    Right (OperatorBenchmarks confs) ->
+      foldrM runMonitorBenchmark mempty confs
+        >>= (liftIO . TL.writeFile (outpath </> "out.csv"))
+          . TL.decodeUtf8
+          . Csv.encodeDefaultOrderedByName
 
 runBenchmarks :: Flags -> IO ()
 runBenchmarks =

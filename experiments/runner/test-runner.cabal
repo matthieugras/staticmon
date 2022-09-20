@@ -1,11 +1,11 @@
-cabal-version: 3.0
-name:          test-runner
-version:       0.1.0.0
-synopsis:      Test runner for staticmon
-category:      Testing
+cabal-version:      3.0
+name:               test-runner
+version:            0.1.0.0
+synopsis:           Test runner for staticmon
+category:           Testing
 
 executable test-runner
-  main-is:            Main.hs
+  main-is:          Main.hs
   other-modules:
     BenchmarkRunner
     EventGenerators
@@ -20,7 +20,7 @@ executable test-runner
   build-depends:
     , aeson                  ^>=2.1.0.0
     , attoparsec             ^>=0.14.4
-    , base                   ^>=4.14.3.0
+    , base                   ^>=4.16.3.0
     , cassava                ^>=0.5.2.0
     , clock                  ^>=0.8.3
     , concurrent-extra       ^>=0.7.0.12
@@ -42,53 +42,14 @@ executable test-runner
     , unliftio               ^>=0.2.22.0
     , uuid                   ^>=1.3.15
     , vector                 ^>=0.13.0.0
-    , yaml                   ^>=0.11.8.0
 
-  ghc-options:        -rtsopts -fno-full-laziness -threaded -W -Wextra
-  hs-source-dirs:     app lib
-  default-language:   Haskell2010
+  ghc-options:      -rtsopts -fno-full-laziness -threaded -W -Wextra
+  hs-source-dirs:   app lib
+  default-language: GHC2021
+
   default-extensions:
-    BangPatterns
-    BinaryLiterals
-    ConstrainedClassMethods
-    ConstraintKinds
-    DeriveDataTypeable
-    DeriveFoldable
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DoAndIfThenElse
-    EmptyCase
-    EmptyDataDeriving
-    ExistentialQuantification
-    ExplicitForAll
-    ExtendedDefaultRules
-    FlexibleContexts
-    FlexibleInstances
-    ForeignFunctionInterface
-    GADTSyntax
-    GeneralisedNewtypeDeriving
-    HexFloatLiterals
-    ImportQualifiedPost
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    NamedFieldPuns
-    NamedWildCards
-    NumericUnderscores
-    OverloadedStrings
-    PolyKinds
-    PostfixOperators
-    RankNTypes
     RecordWildCards
-    ScopedTypeVariables
-    StandaloneDeriving
-    StandaloneKindSignatures
-    TraditionalRecordSyntax
-    TupleSections
-    TypeApplications
-    TypeOperators
-    TypeSynonymInstances
+    ExtendedDefaultRules
+    OverloadedStrings
+    LambdaCase
     TemplateHaskell
