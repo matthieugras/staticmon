@@ -57,7 +57,7 @@ struct bin_rel_op {
           if (joined.empty())
             return std::nullopt;
           else
-            return std::move(joined);
+            return joined;
         });
     } else if constexpr (std::is_same_v<Tag, or_tag>) {
       return buf_.update_and_reduce(
@@ -77,7 +77,7 @@ struct bin_rel_op {
           if (unioned.empty())
             return std::nullopt;
           else
-            return std::move(unioned);
+            return unioned;
         });
     } else if constexpr (std::is_same_v<Tag, and_not_tag>) {
       return buf_.update_and_reduce(
@@ -94,7 +94,7 @@ struct bin_rel_op {
           if (ajoined.empty())
             return std::nullopt;
           else
-            return std::move(ajoined);
+            return ajoined;
         });
     } else {
       static_assert(always_false_v<Tag>, "cannot happen");

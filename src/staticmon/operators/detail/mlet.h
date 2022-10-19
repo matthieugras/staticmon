@@ -16,24 +16,18 @@ database_table tab_to_db_tab(const Tab &tab) {
 }
 
 template<typename ReorderMask, typename Tab>
-std::optional<database::mapped_type>
-tabs_to_db_tabs(const std::vector<Tab> &tabs) {
+database::mapped_type tabs_to_db_tabs(const std::vector<Tab> &tabs) {
   database::mapped_type res;
-  bool all_empty = true;
   res.reserve(tabs.size());
   for (const auto &tab : tabs) {
     if (tab) {
       assert(!tab->empty());
       res.emplace_back(tab_to_db_tab<ReorderMask>(*tab));
-      all_empty = false;
     } else {
       res.emplace_back();
     }
   }
-  if (all_empty)
-    return std::nullopt;
-  else
-    return std::move(res);
+  return res;
 }
 
 template<std::size_t pred_id, typename PredL, typename MFormula1,
@@ -48,11 +42,9 @@ struct mlet {
   std::vector<std::optional<res_tab_t>> eval(database &db, const ts_list &ts) {
     auto l_tabs = f1_.eval(db, ts);
     auto db_ent = tabs_to_db_tabs<reorder_mask>(l_tabs);
-    if (db_ent) {
-      // predicate ids assumed to be unique
-      bool did_emplace = db.emplace(pred_id, std::move(*db_ent)).second;
-      assert(did_emplace);
-    }
+    // predicate ids assumed to be unique
+    bool did_emplace = db.emplace(pred_id, std::move(db_ent)).second;
+    assert(did_emplace);
     auto res = f2_.eval(db, ts);
     db.erase(pred_id);
     return res;
@@ -84,11 +76,11 @@ struct mletpast {
 
   std::vector<std::optional<tab1_t>> eval_left(database &db, const ts_list &ts,
                                                database::mapped_type &buf) {
-    std::vector<tab1_t> res;
+    std::vector<std::optional<tab1_t>> res;
     bool fst_it = true;
     database::mapped_type rec_buf;
     for (;;) {
-      std::vector<tab1_t> rec_tabs;
+      std::vector<std::optional<tab1_t>> rec_tabs;
       if (fst_it) {
         fst_it = false;
         bool did_emplace = db.emplace(pred_id, std::move(buf)).second;
@@ -105,7 +97,10 @@ struct mletpast {
         return res;
       } else {
         if (tp1_ + 1 >= curr_tp_) {
-          buf_.emplace(rec_tabs[0]);
+          if (rec_tabs[0])
+            buf_.emplace();
+          else
+            buf_.emplace(*rec_tabs[0]);
           for (auto &tab : rec_tabs)
             res.emplace_back(std::move(tab));
           return res;
@@ -122,7 +117,7 @@ struct mletpast {
     assert(db.find(pred_id) == db.end());
     auto db_ent = db_ent_of_buf();
     auto left_tabs = eval_left(db, ts, db_ent);
-    if (!left_tabs) {
+    if (left_tabs.empty()) {
       db.erase(pred_id);
     } else {
       db.insert_or_assign(pred_id, tabs_to_db_tabs<reorder_mask>(left_tabs));
