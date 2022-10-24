@@ -97,7 +97,7 @@ struct mletpast {
         return res;
       } else {
         if (tp1_ + 1 >= curr_tp_) {
-          if (rec_tabs[0])
+          if (!rec_tabs[0])
             buf_.emplace();
           else
             buf_.emplace(*rec_tabs[0]);
