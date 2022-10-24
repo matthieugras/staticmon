@@ -24,6 +24,15 @@ def make_temporal_bench(nts, tpts, lbound, ubound, bench):
     })
 
 
+# plots for fixedcommon
+# plot 1 nc: [1,2,4,8] with size 300 x 300
+# plot 2 nl, nr: [1,2,4,8]^2 with size 300 x 300
+# plot 3 sizes: [0, 150, 300, 600]^2 with nl = nr = 3 and nc = 1
+
+# plots for cartesian product:
+# plot 1 nl, nr: [1,2,4,8]^2 with size 300 x 300
+# plot 2 sizes: [0, 150, 300, 600]^2 with nl = nr = 3
+
 andsizes = list(permutations([150, 300], 2)) + \
     [(0, i) for i in [1000]] + \
     [(i, 0) for i in [1000]]
@@ -79,6 +88,8 @@ for ((ls, rs), p, lv) in product(antijoinsizes,
                 antijoinbench.append(make_op_benchmark(100, newbench))
 
 
+# plot 1 sizes: [0, 1, 300, 1000]^2, nvars = 10, shuffled vs samelayout
+# plot 2 nvars: [1, 5, 10, 15], size 1000 x 1000, shuffled vs samelayout
 orsizes = [0, 1, 300, 1000]
 nvars = [1, 5, 10]
 oropts = ["samelayout", "shuffled"]

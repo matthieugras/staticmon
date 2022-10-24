@@ -28,3 +28,7 @@ experiments/runner/out.old.mfotl
 experiments/runner/out.old.sig
 experiments/runner/sig
 experiments/runner/config.yaml
+experiments/runner/and_common_data.csv
+experiments/runner/exists_data.csv
+experiments/runner/or_data.csv
+experiments/runner/once_data.csv
