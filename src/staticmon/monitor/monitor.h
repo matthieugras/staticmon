@@ -40,6 +40,7 @@ struct monitor {
         output_tab = make_verdicts(*sats[i]);
       }
       auto it = tp_ts_map_.find(new_curr_tp);
+      assert(it != tp_ts_map_.end());
       if (it->second < MAXIMUM_TIMESTAMP)
         printer_.print_verdict(it->second, new_curr_tp, output_tab);
       tp_ts_map_.erase(it);

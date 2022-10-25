@@ -5,6 +5,24 @@
 #include <staticmon/common/table.h>
 #include <staticmon/operators/detail/operator_types.h>
 
+// namespace fmt {
+// template<typename T>
+// struct formatter<std::optional<T>> : trivial_parser {
+//
+//   template<typename FormatContext>
+//   auto format
+//     [[maybe_unused]] (const std::optional<T> &arg, FormatContext &ctx) const
+//     -> decltype(auto) {
+//     if (arg) {
+//       return fmt::format_to(ctx.out(), "{}", *arg);
+//     } else {
+//       return fmt::format_to(ctx.out(), "((empty))");
+//     }
+//   }
+// };
+// }// namespace fmt
+
+
 template<typename ReorderMask, typename Tab>
 database_table tab_to_db_tab(const Tab &tab) {
   database_table new_tab;
@@ -83,15 +101,16 @@ struct mletpast {
       std::vector<std::optional<tab1_t>> rec_tabs;
       if (fst_it) {
         fst_it = false;
+        tp1_ += buf.size();
         bool did_emplace = db.emplace(pred_id, std::move(buf)).second;
         assert(did_emplace);
         rec_tabs = f1_.eval(db, ts);
       } else {
         database rec_db;
+        tp1_ += rec_buf.size();
         rec_db.emplace(pred_id, std::move(rec_buf));
         rec_tabs = f1_.eval(rec_db, ts_list());
       }
-      tp1_ += rec_tabs.size();
       if (rec_tabs.empty()) {
         buf_.reset();
         return res;
@@ -117,11 +136,7 @@ struct mletpast {
     assert(db.find(pred_id) == db.end());
     auto db_ent = db_ent_of_buf();
     auto left_tabs = eval_left(db, ts, db_ent);
-    if (left_tabs.empty()) {
-      db.erase(pred_id);
-    } else {
-      db.insert_or_assign(pred_id, tabs_to_db_tabs<reorder_mask>(left_tabs));
-    }
+    db.insert_or_assign(pred_id, tabs_to_db_tabs<reorder_mask>(left_tabs));
     auto ret = f2_.eval(db, ts);
     db.erase(pred_id);
     curr_tp_ += ts.size();
@@ -132,5 +147,5 @@ struct mletpast {
   MFormula2 f2_;
   std::optional<tab1_t> buf_;
   std::size_t tp1_ = 0;
-  std::size_t curr_tp_ = 0;
+  std::size_t curr_tp_ = 1;
 };
