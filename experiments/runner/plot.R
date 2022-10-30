@@ -95,25 +95,8 @@ exists_plot_1 <- function(data) {
   return(p)
 }
 
-exists_plot_2 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_grid(rows = vars(pvars), cols = vars(exvars)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
-
 exists_data <- read_csv("exists_data.csv")
 exists_size_data <- exists_data %>% filter(exvars == 1, pvars == 5)
-exists_pv_ex_data <- exists_data %>% filter(size == 1000)
 exists_plot_1(exists_size_data)
 exists_plot_2(exists_pv_ex_data)
 

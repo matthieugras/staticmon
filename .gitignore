@@ -33,3 +33,8 @@ experiments/runner/exists_data.csv
 experiments/runner/or_data.csv
 experiments/runner/once_data.csv
 experiments/runner/.Rhistory
+experiments/runner/next_data.csv
+experiments/runner/eventually_data.csv
+experiments/runner/and_cartesian_data.csv
+experiments/runner/previous_data.csv
+experiments/runner/since_random_data.csv

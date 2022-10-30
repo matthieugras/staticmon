@@ -456,24 +456,34 @@ getBenchName OperatorBenchmark {..} =
                 suffix :: Builder = case ac_opts of
                   Distinct ->
                     "cartesian_"
-                      +| ac_n1 |+ "_"
-                      +| ac_n2 |+ ""
+                      +| ac_n1
+                      |+ "_"
+                      +| ac_n2
+                      |+ ""
                   Subset left_subset ->
                     "subset_"
-                      +| left_subset |+ "_"
-                      +| ac_n1 |+ "_"
-                      +| ac_n2 |+ ""
+                      +| left_subset
+                      |+ "_"
+                      +| ac_n1
+                      |+ "_"
+                      +| ac_n2
+                      |+ ""
                   FixedCommon nc ->
                     "common_"
-                      +| nc |+ "_"
-                      +| ac_n1 |+ "_"
-                      +| ac_n2 |+ ""
+                      +| nc
+                      |+ "_"
+                      +| ac_n1
+                      |+ "_"
+                      +| ac_n2
+                      |+ ""
              in "" +| prefix |+ "_" +| suffix |+ ""
           OrOperator OrConfig {..} ->
             let prefix :: Builder =
                   "or_"
-                    +| or_lsize |+ "_"
-                    +| or_rsize |+ ""
+                    +| or_lsize
+                    |+ "_"
+                    +| or_rsize
+                    |+ ""
                 suffix :: Builder = case or_opts of
                   SameLayout -> "same_" +| or_nvars |+ ""
                   Shuffled -> "shuffled_" +| or_nvars |+ ""
@@ -481,53 +491,83 @@ getBenchName OperatorBenchmark {..} =
           AntiJoinOperator AntiJoinConfig {..} ->
             let prefix :: Builder =
                   "and_not_"
-                    +| aj_lsize |+ "_"
-                    +| aj_rsize |+ ""
+                    +| aj_lsize
+                    |+ "_"
+                    +| aj_rsize
+                    |+ ""
              in ""
-                  +| prefix |+ "_"
-                  +| aj_matchprobability |+ "_"
-                  +| aj_vars |+ ""
+                  +| prefix
+                  |+ "_"
+                  +| aj_matchprobability
+                  |+ "_"
+                  +| aj_vars
+                  |+ ""
           ExistsOperator ExistsConfig {..} ->
             "exists_" +| ex_n |+ "_" +| ex_predn |+ "_" +| ex_size |+ ""
           TemporalOperator TemporalConfig {..} ->
             case tc_suboperator of
               PrevOperator PrevConfig {..} ->
                 "prev_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| pr_size |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| pr_size
+                  |+ ""
               NextOperator NextConfig {..} ->
                 "next_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| nx_size |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| nx_size
+                  |+ ""
               UntilOperator UntilConfig {..} ->
                 "until_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| ut_eventrate |+ "_"
-                  +| ut_negate |+ "_"
-                  +| ut_vars |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| ut_eventrate
+                  |+ "_"
+                  +| ut_negate
+                  |+ "_"
+                  +| ut_vars
+                  |+ ""
               SinceOperator SinceConfig {..} ->
                 "since_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| si_eventrate |+ "_"
-                  +| si_negate |+ "_"
-                  +| fixedF 3 si_removeprobability |+ "_"
-                  +| si_vars |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| si_eventrate
+                  |+ "_"
+                  +| si_negate
+                  |+ "_"
+                  +| fixedF 3 si_removeprobability
+                  |+ "_"
+                  +| si_vars
+                  |+ ""
               OnceOperator OnceConfig {..} ->
                 "once_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| oc_eventrate |+ "_"
-                  +| oc_nvars |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| oc_eventrate
+                  |+ "_"
+                  +| oc_nvars
+                  |+ ""
               EventuallyOperator EventuallyConfig {..} ->
                 "eventually_"
-                  +| tc_lbound |+ "_"
-                  +| tc_ubound |+ "_"
-                  +| ev_eventrate |+ "_"
-                  +| ev_nvars |+ ""
+                  +| tc_lbound
+                  |+ "_"
+                  +| tc_ubound
+                  |+ "_"
+                  +| ev_eventrate
+                  |+ "_"
+                  +| ev_nvars
+                  |+ ""
    in "" +| opparam |+ "_" +| opdesc |+ ""
 
 intArgs = map Intgr
@@ -671,9 +711,9 @@ orBenchGen log_f sig_f fo_f nts ntp OrConfig {..} =
               addPredToSig "Q" n sig_h
           )
         (phivars, psivars) <- case or_opts of
-          SameLayout -> return ([0 :: Int .. (n -1)], [0 .. (n -1)])
+          SameLayout -> return ([0 :: Int .. (n - 1)], [0 .. (n - 1)])
           Shuffled ->
-            let rvar = shuffle [0 :: Int .. (n -1)]
+            let rvar = shuffle [0 :: Int .. (n - 1)]
              in liftA2 (,) (runRVar rvar globalStdGen) (runRVar rvar globalStdGen)
         let ppred :: Builder = varsToPred "P" phivars
             qpred :: Builder = varsToPred "Q" psivars
@@ -705,41 +745,45 @@ existsBenchGen log_f sig_f fo_f nts ntp ExistsConfig {..} =
 eventuallyOnceBenchGen log_f sig_f fo_f nts ntp lbound ubound eventrate nvars isOnce =
   let vars = [0 .. (nvars - 1)]
       ppred = varsToPred "P" vars
+      newEvPerTp = eventrate `div` ntp
    in do
         T.writeFile
           fo_f
           ( (if isOnce then "ONCE" else "EVENTUALLY")
-              +| (lbound, ubound) |+ " "
-              +| ppred |+ "\n"
+              +| (lbound, ubound)
+              |+ " "
+              +| ppred
+              |+ "\n"
           )
         withFile sig_f WriteMode (addPredToSig "P" nvars)
         withPrintState log_f $ do
           forM_ [0 .. nts] $ \i ->
             forM_ [0 .. (ntp - 1)] $ \_ -> do
               newDb i
-              outputRandomEvents "P" eventrate nvars
+              outputRandomEvents "P" newEvPerTp nvars
           endOutput
 
 sinceGenHelper lbound ubound n2 cidx2 evr rmp nts ntp =
-  let go i j sl
+  let newEvPerTp = evr `div` ntp
+      go i j sl
         | i == nts = return ()
         | otherwise =
-          let advsl = advanceSlidingWindow i sl
-           in do
-                newDb (fromIntegral i)
-                revs <- V.replicateM evr (randomInt64Vec n2)
-                V.forM_ revs (outputNewEvent "Q")
-                let revsproj = V.map (`projectVec` cidx2) revs
-                    newsl = addEventsSlidingWindow revsproj advsl
-                killsl <- killRandomEventsSlidingWindow rmp newsl
-                forM_
-                  (getInSlidingWindow killsl)
-                  ( \(_, evs) ->
-                      V.forM_ evs (outputNewEvent "P")
-                  )
-                if (j + 1) == ntp
-                  then go (i + 1) 0 killsl
-                  else go i (j + 1) killsl
+            let advsl = advanceSlidingWindow i sl
+             in do
+                  newDb (fromIntegral i)
+                  revs <- V.replicateM newEvPerTp (randomInt64Vec n2)
+                  V.forM_ revs (outputNewEvent "Q")
+                  let revsproj = V.map (`projectVec` cidx2) revs
+                      newsl = addEventsSlidingWindow revsproj advsl
+                  killsl <- killRandomEventsSlidingWindow rmp newsl
+                  forM_
+                    (getInSlidingWindow killsl)
+                    ( \(_, evs) ->
+                        V.forM_ evs (outputNewEvent "P")
+                    )
+                  if (j + 1) == ntp
+                    then go (i + 1) 0 killsl
+                    else go i (j + 1) killsl
    in go 0 0 (initSlidingWindow lbound ubound)
 
 untilGenHelper _ _ _ _ _ _ _ _ =
@@ -763,10 +807,14 @@ sinceUntilBenchGen log_f sig_f fo_f nts ntp lbound ubound SinceUntilConfig {..} 
   T.writeFile
     fo_f
     ( ""
-        +| pred1MaybeNeg |+ " "
-        +| sinceUntilStr |+ " "
-        +| (lbound, ubound) |+ " "
-        +| pred2 |+ "\n"
+        +| pred1MaybeNeg
+        |+ " "
+        +| sinceUntilStr
+        |+ " "
+        +| (lbound, ubound)
+        |+ " "
+        +| pred2
+        |+ "\n"
     )
   withFile
     sig_f

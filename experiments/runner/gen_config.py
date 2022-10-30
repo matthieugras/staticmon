@@ -24,43 +24,36 @@ def make_temporal_bench(nts, tpts, lbound, ubound, bench):
     })
 
 
-# plots for fixedcommon
-# plot 1 nc: [1,2,4,8] with size 300 x 300
-# plot 2 nl, nr: [1,2,4,8]^2 with size 300 x 300
-# plot 3 sizes: [0, 150, 300, 600]^2 with nl = nr = 3 and nc = 1
+# nc | n1 | n2 | lsize | rsize
+p1 = list(product(["fixedcommon"], [1, 2, 4, 8], [10], [10], [300], [300]))
+p2 = list(product(["fixedcommon"], [1], [2, 4, 8, 16], [2, 4, 8, 16],
+          [300], [300]))
+p3 = list(product(["fixedcommon"], [1], [3], [3], [0, 150, 300, 600],
+                  [0, 150, 300, 600]))
 
-# plots for cartesian product:
-# plot 1 nl, nr: [1,2,4,8]^2 with size 300 x 300
-# plot 2 sizes: [0, 150, 300, 600]^2 with nl = nr = 3
+# nl | nr | sizel | sizer
+p4 = list(product(["distinct"], [1, 2, 4, 8], [1, 2, 4, 8], [300], [300]))
+p5 = list(product(["distinct"], [3], [3], [
+          0, 150, 300, 600], [0, 150, 300, 600]))
 
-andsizes = list(permutations([150, 300], 2)) + \
-    [(0, i) for i in [1000]] + \
-    [(i, 0) for i in [1000]]
-nvars = [1, 5, 10]
-commvars = [1, 2, 4]
 andbench = []
-for ((ls, rs), n1, n2) in product(andsizes, nvars, nvars):
-    newopt = [{"distinct": []}]
-    if n1 <= n2:
-        newopt.append({"subset": True})
-    if n2 < n1:
-        newopt.append({"subset": False})
-    for nc in commvars:
-        if nc > n1 or nc > n2:
-            break
-        else:
-            newopt.append({"fixedcommon": nc})
-    for opt in newopt:
-        newbench = {
-            "andoperator": {
-                "lsize": ls,
-                "rsize": rs,
-                "n1": n1,
-                "n2": n2,
-                "opts": opt
-            }
+for b in (p1 + p2 + p3 + p4 + p5):
+    if b[0] == "fixedcommon":
+        (nc, n1, n2, ls, rs) = b[1:]
+        opt = {"fixedcommon": nc}
+    else:
+        (n1, n2, ls, rs) = b[1:]
+        opt = {"distinct": []}
+    newbench = {
+        "andoperator": {
+            "lsize": ls,
+            "rsize": rs,
+            "n1": n1,
+            "n2": n2,
+            "opts": opt
         }
-        andbench.append(make_op_benchmark(100, newbench))
+    }
+    andbench.append(make_op_benchmark(100, newbench))
 
 antijoinsizes = list(permutations([300, 1000], 2)) + \
     [(0, i) for i in [1000]] + \
@@ -87,12 +80,10 @@ for ((ls, rs), p, lv) in product(antijoinsizes,
                 }
                 antijoinbench.append(make_op_benchmark(100, newbench))
 
-
-# plot 1 sizes: [0, 1, 300, 1000]^2, nvars = 10, shuffled vs samelayout
-# plot 2 nvars: [1, 5, 10, 15], size 1000 x 1000, shuffled vs samelayout
-orsizes = [0, 1, 300, 1000]
-nvars = [1, 5, 10]
-oropts = ["samelayout", "shuffled"]
+# lsize | rsize | nvars | mode
+p1 = list(product([0, 1, 300, 1000], [0, 1, 300, 1000],
+          [10], ["shuffled", "samelayout"]))
+p2 = list(product([1000], [1000], [1, 5, 15], ["samelayout", "shuffled"]))
 orbench = [
     make_op_benchmark(100, {
         "oroperator": {
@@ -102,24 +93,19 @@ orbench = [
             "opts": op
         }
     })
-    for (ls, rs, n, op) in product(orsizes, orsizes, nvars, oropts)
+    for (ls, rs, n, op) in (p1 + p2)
 ]
 
-existsbench = []
-for s in [100, 200, 1000]:
-    for pn in [5, 10, 15]:
-        for n in [1, 2, 4, 8]:
-            if n > pn:
-                break
-            else:
-                newbench = {
-                    "existsoperator": {
-                        "n": n,
-                        "predn": pn,
-                        "size": s
-                    }
-                }
-                existsbench.append(make_op_benchmark(100, newbench))
+existsbench = [
+    make_op_benchmark(100, {
+        "existsoperator": {
+            "n": 1,
+            "predn": 5,
+            "size": s
+        }
+    })
+    for s in [100, 200, 1000]
+]
 
 
 def cstb(i):
@@ -130,75 +116,79 @@ def infb():
     return {"infbound": []}
 
 
-bounds = [(cstb(i), cstb(10)) for i in [0, 1, 2, 4]]  \
-    + [(cstb(0), cstb(i)) for i in [0, 2, 4]] \
-    + [(cstb(i), infb()) for i in [0, 1, 2, 4]]
 ops = ["prevoperator", "nextoperator"]
-sizes = [0, 40, 300]
-tpts = [1]
+sizes = [(10000, 1), (5000, 2), (2500, 4),
+         (1250, 8), (500, 16), (250, 32), (125, 64)]
 prevnxtbench = [
-    make_temporal_bench(100, ntp, lb, ub, {
+    make_temporal_bench(logs, 1, cstb(0), infb(), {
         op: {
             "size": s
         }
     }) for
-    (ntp, (lb, ub), op, s) in product(tpts, bounds, ops, sizes)
+    (op, (logs, s)) in product(ops, sizes)
 ]
 
-tpts = [1]
-evrates = [100, 1000]
-bounds = [(cstb(i), cstb(10)) for i in [0, 1, 2, 4]]  \
-    + [(cstb(0), cstb(i)) for i in [0, 2, 4]] \
-    + [(cstb(i), infb()) for i in [0, 1, 2, 4]]
+p1 = list(product([100], [200], [1], [cstb(0)], [cstb(i)
+          for i in [0, 2, 8, 16, 32]]))
+p2 = [(evr, s, 1, cstb(0), cstb(10))
+      for (evr, s) in
+      [(100, 200), (50, 400), (25, 200), (12, 1600), (6, 3200)]]
+p3 = list(product([50], [200, 400, 800, 1600, 3200], [1], [cstb(0)], [infb()]))
+p4 = [(100, 200, 1, cstb(b), cstb(b)) for b in [1, 4, 8, 16, 32]]
+p5 = [(100, 200, n, cstb(0), cstb(10)) for n in [2, 4, 8, 16]]
+
 oncebench = [
-    make_temporal_bench(100, ntp, lb, ub, {
+    make_temporal_bench(s, 1, lb, ub, {
         "onceoperator": {
             "eventrate": evr,
             "nvars": n
         }
     }) for
-    (ntp, (lb, ub), evr, n) in product(tpts, bounds, evrates, nvars)
+    (evr, s, n, lb, ub) in (p1 + p2 + p3 + p4 + p5)
 ]
 
-tpts = [1]
-evrates = [100, 1000]
-bounds = [(cstb(i), cstb(10)) for i in [0, 1, 2, 4]]  \
-    + [(cstb(0), cstb(i)) for i in [0, 2, 4]]
 eventuallybench = [
-    make_temporal_bench(100, ntp, lb, ub, {
+    make_temporal_bench(s, 1, lb, ub, {
         "eventuallyoperator": {
             "eventrate": evr,
             "nvars": n
         }
     }) for
-    (ntp, (lb, ub), evr, n) in product(tpts, bounds, evrates, nvars)
+    (evr, s, n, lb, ub) in (p1 + p2 + p4 + p5)
 ]
 
-tpts = [1]
-evrates = [350]
-negate = [False, True]
-bounds = [(cstb(i), cstb(i)) for i in [0, 8, 16]] + \
-         [(cstb(i), cstb(j)) for (i, j) in [(2, 4), (2, 8), (2, 16)]]
-subsetopts = [{"randomsubset": [i, 4]} for i in [1, 4]]
-removeprob = [0.01, 0.5, 0.80]
-removeprob_neg = [0.99, 0.5, 0.2]
-sincebench = []
-for (ntp, (lb, ub), evr, neg, s) in product(tpts, bounds,
-                                            evrates, negate, subsetopts):
-    probs = removeprob_neg if neg else removeprob
-    for p in probs:
-        newbench = make_temporal_bench(200, ntp, lb, ub, {
-            "sinceoperator": {
-                "eventrate": evr,
-                "vars": s,
-                "negate": neg,
-                "removeprobability": p
-            }
-        })
-        sincebench.append(newbench)
+# evr | length | subsetopt | lb | ub | rmprob | neg
+p1_2 = [(100, 200, {"randomsubset": [1, 3]}, cstb(0),
+         cstb(i), p, neg) for i in [0, 2, 8, 16, 32]
+        for (p, neg) in [(0.001, False), (0.999, True)]]
+p3_4 = [(evr, s, {"randomsubset": [1, 3]}, cstb(0), cstb(10), p, neg)
+        for (evr, s) in
+        [(100, 200), (50, 400), (25, 200), (12, 1600), (6, 3200)]
+        for (p, neg) in [(0.001, False), (0.999, True)]]
+p5_6 = [(100, 200, {"randomsubset": [1, 3]}, cstb(b), cstb(b), p, neg)
+        for b in [1, 4, 8, 16, 32]
+        for (p, neg) in [(0.001, False), (0.999, True)]]
+p7_8 = [(100, 200, {"randomsubset": [i, 10]}, cstb(0), cstb(10), p, neg)
+        for i in [1, 2, 4, 8]
+        for (p, neg) in [(0.001, False), (0.999, True)]]
+p9_10 = [(100, 200, {"randomsubset": [1, 3]}, cstb(0), cstb(10), p, neg)
+         for (ps, neg) in [([0.1, 0.15, 0.3], False), ([0.9, 0.85, 0.7], True)]
+         for p in ps]
+sincebench = [
+    make_temporal_bench(s, 1, lb, ub, {
+        "sinceoperator": {
+            "eventrate": evr,
+            "vars": opt,
+            "negate": neg,
+            "removeprobability": p
+        }
+    })
+    for (evr, s, opt, lb, ub, p, neg) in (p1_2 + p3_4 + p5_6 + p7_8 + p9_10)
+]
 
 config = andbench + orbench + existsbench + \
-    sincebench + oncebench + eventuallybench
+    sincebench + oncebench + eventuallybench + prevnxtbench
+
 print(len(config))
 with open("config.yaml", 'w', encoding='utf8') as conf_out:
     json.dump(config, conf_out, ensure_ascii=True)

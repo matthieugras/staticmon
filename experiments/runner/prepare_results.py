@@ -12,27 +12,59 @@ configs = [
     {
         "name": "and_common",
         "regex": r"(\d*)_(\d*)_and_(\d*)_(\d*)_common_(\d*)_(\d*)_(\d*)",
-        "cols": ["numtp", "numts", "lsize", "rsize", "nc", "n1", "n2"],
+        "cols": ["numts", "numtp", "lsize", "rsize", "nc", "n1", "n2"],
         "conv_fs": [int] * 7
+
+    },
+    {
+        "name": "and_cartesian",
+        "regex": r"(\d*)_(\d*)_and_(\d*)_(\d*)_cartesian_(\d*)_(\d*)",
+        "cols": ["numts", "numtp", "lsize", "rsize", "n1", "n2"],
+        "conv_fs": [int] * 6
 
     },
     {
         "name": "or",
         "regex": r"(\d*)_(\d*)_or_(\d*)_(\d*)_(same|shuffled)_(\d*)",
-        "cols": ["numtp", "numts", "lsize", "rsize", "order", "nvars"],
+        "cols": ["numts", "numtp", "lsize", "rsize", "order", "nvars"],
         "conv_fs": ([int] * 4) + [id_f, int]
     },
     {
         "name": "exists",
         "regex": r"(\d*)_(\d*)_exists_(\d*)_(\d*)_(\d*)",
-        "cols": ["numtp", "numts", "exvars", "pvars", "size"],
+        "cols": ["numts", "numtp", "exvars", "pvars", "size"],
         "conv_fs": [int] * 5
     },
     {
         "name": "once",
         "regex": r"(\d*)_(\d*)_once_(\d*)_(\d*|inf)_(\d*)_(\d*)",
-        "cols": ["numtp", "numts", "lbound", "ubound", "evr", "nvars"],
+        "cols": ["numts", "numtp", "lbound", "ubound", "evr", "nvars"],
         "conv_fs": ([int] * 3) + [id_f] + ([int] * 2)
+    },
+    {
+        "name": "eventually",
+        "regex": r"(\d*)_(\d*)_eventually_(\d*)_(\d*)_(\d*)_(\d*)",
+        "cols": ["numts", "numtp", "lbound", "ubound", "evr", "nvars"],
+        "conv_fs": ([int] * 3) + [id_f] + ([int] * 2)
+    },
+    {
+        "name": "since_random",
+        "regex": r"(\d*)_(\d*)_since_(\d*)_(\d*|inf)_(\d*)_(True|False)_(\d*\.\d*)_random_(\d*)_(\d*)",
+        "cols": ["numts", "numtp", "lbound", "ubound", "evr", "neg", "prob",
+                 "n1", "n2"],
+        "conv_fs": ([int] * 3) + [id_f, int, id_f, float] + ([int] * 2)
+    },
+    {
+        "name": "next",
+        "regex": r"(\d*)_(\d*)_next_(\d*)_(\d*|inf)_(\d*)",
+        "cols": ["numts", "numtp", "lbound", "ubound", "size"],
+        "conv_fs": ([int] * 3) + [id_f, int]
+    },
+    {
+        "name": "previous",
+        "regex": r"(\d*)_(\d*)_prev_(\d*)_(\d*|inf)_(\d*)",
+        "cols": ["numts", "numtp", "lbound", "ubound", "size"],
+        "conv_fs": ([int] * 3) + [id_f, int]
     }
 ]
 
