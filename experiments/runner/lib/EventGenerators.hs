@@ -575,7 +575,7 @@ intArgs = map Intgr
 addPredToSig name arity sig_h =
   T.hPutStr sig_h psig
   where
-    psig = " " +| name |+ "(" +| intlist |+ ")"
+    psig = "" +| name |+ "(" +| intlist |+ ")"
     intlist = (mconcat . intersperse ",") (replicate arity (build "int"))
 
 argsF vars = mconcat . intersperse "," $ map (\v -> "x" +| v |+ "") vars :: Builder
