@@ -2,27 +2,11 @@ library(ggplot2)
 library(readr)
 library(dplyr)
 
-and_plot_1 <- function(data) {
+make_grid_plot <- function(data, xvar, rvar, colvar) {
   dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
+  p <- ggplot(data, aes(xvar, time, fill=monitor)) +
     geom_col(width = 0.8, position = dodge_text) +
-    facet_wrap(facets = vars(nc)) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
-
-and_plot_2 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_grid(rows = vars(n1), cols = vars(n2)) +
+    facet_grid(formula(paste0(rvar, " ~ ", colvar))) +
     geom_text(
       aes(label = time),
       size = 2.5,
@@ -34,106 +18,84 @@ and_plot_2 <- function(data) {
   return(p)
 }
 
-and_common <- read_csv("and_common_data.csv")
-# Missing good data where sizes vary
-nc_data <- and_common %>% filter(lsize == 150, rsize == 300, n1 == 10, n2 == 10)
-n1_n2_data <- and_common %>% filter(nc == 1, lsize == 150, rsize == 300)
-and_plot_1(nc_data)
-and_plot_2(n1_n2_data)
-
-or_plot_1 <- function(data) {
+make_wrap_plot <- function(data, xvar, wvar) {
   dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(order, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_grid(rows = vars(lsize), cols = vars(rsize)) +
+  p <- ggplot(data, aes(xvar, time, fill=monitor)) +
     geom_text(
       aes(label = time),
       size = 2.5,
       vjust = -0.2,
       position = dodge_text,
     ) +
+    geom_col(width = 0.8, position = dodge_text) +
+    facet_wrap(formula(paste0(". ~ ", wvar))) +
     ylab("Duration (s)") +
     xlab("Monitor")
-  return(p)
 }
 
-or_plot_2 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(order, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_wrap(facets = vars(nvars)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
+and_common_data <- read_csv("and_common_data.csv")
+p1_data <- and_common_data %>% filter(lsize == 300, rsize == 300, n1 == 10, n2 == 10, monitor != "verimon")
+print(make_wrap_plot(p1_data, p1_data$monitor, "nc"))
+p2_data <- and_common_data %>% filter(lsize == 300, rsize == 300, nc == 1, monitor != "verimon", n1 != 3, n1 != 10)
+print(make_grid_plot(p2_data, p2_data$monitor, "n1", "n2"))
+p3_data <- and_common_data %>% filter(nc == 1, n1 == 3, n2 == 3, monitor != "verimon")
+print(make_grid_plot(p3_data, p3_data$monitor, "lsize", "rsize"))
+
+and_distinct_data <- read_csv("and_cartesian_data.csv")
+p4_data <- and_distinct_data %>% filter(lsize == 300, rsize == 300, monitor != "verimon", n1 != 3)
+print(make_grid_plot(p4_data, p4_data$monitor, "n1", "n2"))
+p5_data <- and_distinct_data %>% filter(n1 == 3, n2 == 3, monitor != "verimon")
+print(make_grid_plot(p5_data, p5_data$monitor, "lsize", "rsize"))
 
 or_data <- read_csv("or_data.csv")
-or_size_data <- or_data %>% filter(nvars == 10)
-or_nvars_data <- or_data %>% filter(lsize == 1000, rsize == 1000)
-or_plot_1(or_size_data)
-or_plot_2(or_nvars_data)
-
-exists_plot_1 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_wrap(facets = vars(size)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
+p1_data <- or_data %>% filter(nvars == 10)
+print(make_grid_plot(p1_data, p1_data$order, "lsize", "rsize"))
+p2_data <- or_data %>% filter(lsize == 1000, rsize == 1000)
+print(make_wrap_plot(p2_data, p2_data$order, "nvars"))
 
 exists_data <- read_csv("exists_data.csv")
-exists_size_data <- exists_data %>% filter(exvars == 1, pvars == 5)
-exists_plot_1(exists_size_data)
-exists_plot_2(exists_pv_ex_data)
-
-once_plot_1 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_wrap(facets = vars(nvars)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
-
-once_plot_2 <- function(data) {
-  dodge_text = position_dodge(width = 0.9)
-  p <- ggplot(data, aes(monitor, time, fill=monitor)) +
-    geom_col(width = 0.8, position = dodge_text) +
-    facet_wrap(facets = vars(lbound)) +
-    geom_text(
-      aes(label = time),
-      size = 2.5,
-      vjust = -0.2,
-      position = dodge_text,
-    ) +
-    ylab("Duration (s)") +
-    xlab("Monitor")
-  return(p)
-}
+print(make_wrap_plot(exists_data, exists_data$monitor, "size"))
 
 once_data <- read_csv("once_data.csv")
-once_nvars_data <- once_data %>% filter(lbound == 0, ubound == 10, evr == 1000)
-once_ubound_data <- once_data %>% filter(ubound == 10, evr == 1000, nvars == 1)
-once_plot_1(once_nvars_data)
-once_plot_2(once_ubound_data)
+p1_data <- once_data %>% filter(evr == 100, numts == 200, lbound == 0, nvars == 1)
+print(make_wrap_plot(p1_data, p1_data$monitor, "ubound"))
+p2_data <- once_data %>% filter(lbound == 0, ubound == 10, nvars == 1)
+print(make_wrap_plot(p2_data, p2_data$monitor, "numts + evr"))
+p3_data <- once_data %>% filter(ubound == Inf)
+print(make_wrap_plot(p3_data, p3_data$monitor, "numts + evr"))
+p4_data <- once_data %>% filter(evr == 100, nvars == 1, lbound == ubound)
+print(make_wrap_plot(p4_data, p4_data$monitor, "lbound"))
+p5_data <- once_data %>% filter(evr == 100, numts == 200, lbound == 0, ubound == 10)
+print(make_wrap_plot(p5_data, p5_data$monitor, "nvars"))
+
+eventually_data <- read_csv("eventually_data.csv")
+p1_data <- eventually_data %>% filter(evr == 100, numts == 200, lbound == 0, nvars == 1)
+print(make_wrap_plot(p1_data, p1_data$monitor, "ubound"))
+p2_data <- eventually_data %>% filter(lbound == 0, ubound == 10, nvars == 1)
+print(make_wrap_plot(p2_data, p2_data$monitor, "numts + evr"))
+p4_data <- eventually_data %>% filter(evr == 100, nvars == 1, lbound == ubound)
+print(make_wrap_plot(p4_data, p4_data$monitor, "lbound"))
+p5_data <- eventually_data %>% filter(evr == 100, numts == 200, lbound == 0, ubound == 10)
+print(make_wrap_plot(p5_data, p5_data$monitor, "nvars"))
+
+since_rand_data <- read_csv("since_random_data.csv")
+p1_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, prob == 0.001, lbound == 0)
+print(make_wrap_plot(p1_data, p1_data$monitor, "ubound"))
+p2_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, prob == 0.999, lbound == 0)
+print(make_wrap_plot(p2_data, p2_data$monitor, "ubound"))
+p3_data <- since_rand_data %>% filter(n1 == 1, n2 == 3, prob == 0.001, lbound == 0, ubound == 10)
+print(make_wrap_plot(p3_data, p3_data$monitor, "evr + numts"))
+p4_data <- since_rand_data %>% filter(n1 == 1, n2 == 3, prob == 0.999, lbound == 0, ubound == 10)
+print(make_wrap_plot(p4_data, p4_data$monitor, "evr + numts"))
+p5_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == ubound, prob == 0.001)
+print(make_wrap_plot(p5_data, p5_data$monitor, "lbound"))
+p6_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == ubound, prob == 0.999)
+print(make_wrap_plot(p6_data, p6_data$monitor, "lbound"))
+p7_data <- since_rand_data %>% filter(evr == 100, numts == 200, n2 == 10, lbound == 0, ubound == 10, prob == 0.001)
+print(make_wrap_plot(p7_data, p7_data$monitor, "n1"))
+p8_data <- since_rand_data %>% filter(evr == 100, numts == 200, n2 == 10, lbound == 0, ubound == 10, prob == 0.999)
+print(make_wrap_plot(p8_data, p8_data$monitor, "n1"))
+p9_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == 0, ubound == 10, neg == FALSE)
+print(make_wrap_plot(p9_data, p9_data$monitor, "prob"))
+p10_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == 0, ubound == 10, neg == TRUE)
+print(make_wrap_plot(p10_data, p10_data$monitor, "prob"))
