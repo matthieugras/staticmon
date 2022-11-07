@@ -186,8 +186,16 @@ sincebench = [
     for (evr, s, opt, lb, ub, p, neg) in (p1_2 + p3_4 + p5_6 + p7_8 + p9_10)
 ]
 
-config = andbench + orbench + existsbench + \
-    sincebench + oncebench + eventuallybench + prevnxtbench
+onceandbench = [
+    make_op_benchmark(50000, {"onceandeqoperator": {
+        "eventrate": 1
+    }})
+]
+
+# config = andbench + orbench + existsbench + \
+#     sincebench + oncebench + eventuallybench + prevnxtbench
+
+config = onceandbench
 
 print(len(config))
 with open("config.yaml", 'w', encoding='utf8') as conf_out:

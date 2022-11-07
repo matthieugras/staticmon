@@ -290,6 +290,20 @@ $( deriveJSON
      ''UntilConfig
  )
 
+data OnceAndEqConfig = OnceAndEqConfig
+  { oa_eventrate :: Int
+  }
+  deriving (Show)
+
+$( deriveJSON
+     defaultOptions
+       { fieldLabelModifier = drop 3,
+         constructorTagModifier = map toLower,
+         sumEncoding = ObjectWithSingleField
+       }
+     ''OnceAndEqConfig
+ )
+
 data SinceUntilConfig = SinceUntilConfig
   { siut_evr :: Int,
     siut_vars :: VarSubsetOptions,
@@ -338,6 +352,7 @@ data OperatorConfig
   | AntiJoinOperator AntiJoinConfig
   | ExistsOperator ExistsConfig
   | TemporalOperator TemporalConfig
+  | OnceAndEqOperator OnceAndEqConfig
   deriving (Show)
 
 $( deriveJSON
@@ -504,6 +519,10 @@ getBenchName OperatorBenchmark {..} =
                   |+ ""
           ExistsOperator ExistsConfig {..} ->
             "exists_" +| ex_n |+ "_" +| ex_predn |+ "_" +| ex_size |+ ""
+          OnceAndEqOperator OnceAndEqConfig {..} ->
+            "once_and_not_"
+              +| oa_eventrate
+              |+ ""
           TemporalOperator TemporalConfig {..} ->
             case tc_suboperator of
               PrevOperator PrevConfig {..} ->
@@ -830,6 +849,18 @@ sinceUntilBenchGen log_f sig_f fo_f nts ntp lbound ubound SinceUntilConfig {..} 
         sinceGenHelper lbound ubound n2 cidx2 siut_evr siut_rmp nts ntp
         endOutput
 
+onceAndNotBenchGen log_f sig_f fo_f nts ntp evr =
+  let newEvPerTp = evr `div` ntp
+   in do
+        T.writeFile fo_f "(ONCE A(x)) AND (x = 5)"
+        withFile sig_f WriteMode (addPredToSig "A" 1)
+        withPrintState log_f $ do
+          forM_ [0 .. nts] $ \i ->
+            forM_ [0 .. (ntp - 1)] $ \_ -> do
+              newDb i
+              outputRandomEvents "A" newEvPerTp 1
+          endOutput
+
 temporalBenchGen log_f sig_f fo_f nts ntp TemporalConfig {..} =
   case tc_suboperator of
     PrevOperator PrevConfig {..} -> do
@@ -895,6 +926,8 @@ generateLogForBenchmark log_f sig_f fo_f OperatorBenchmark {..} =
     OrOperator orconf -> orBenchGen log_f sig_f fo_f op_numts op_numtpperts orconf
     ExistsOperator exconf -> existsBenchGen log_f sig_f fo_f op_numts op_numtpperts exconf
     TemporalOperator tempconf -> temporalBenchGen log_f sig_f fo_f op_numts op_numtpperts tempconf
+    OnceAndEqOperator OnceAndEqConfig {..} ->
+      onceAndNotBenchGen log_f sig_f fo_f op_numts op_numtpperts oa_eventrate
 
 generateRandomLog :: FilePath -> Signature -> ReaderT Flags IO ()
 generateRandomLog fp sig =
