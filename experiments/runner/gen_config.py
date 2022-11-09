@@ -187,7 +187,13 @@ sincebench = [
 ]
 
 onceandbench = [
-    make_op_benchmark(50000, {"onceandeqoperator": {
+    make_op_benchmark(10000, {"onceandeqoperator": {
+        "eventrate": 1
+    }})
+]
+
+onceinrightsincebench = [
+    make_op_benchmark(10000, {"onceinrightsinceoperator": {
         "eventrate": 1
     }})
 ]
@@ -195,7 +201,7 @@ onceandbench = [
 # config = andbench + orbench + existsbench + \
 #     sincebench + oncebench + eventuallybench + prevnxtbench
 
-config = onceandbench
+config = onceinrightsincebench
 
 print(len(config))
 with open("config.yaml", 'w', encoding='utf8') as conf_out:

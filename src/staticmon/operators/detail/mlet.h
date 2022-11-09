@@ -5,24 +5,6 @@
 #include <staticmon/common/table.h>
 #include <staticmon/operators/detail/operator_types.h>
 
-// namespace fmt {
-// template<typename T>
-// struct formatter<std::optional<T>> : trivial_parser {
-//
-//   template<typename FormatContext>
-//   auto format
-//     [[maybe_unused]] (const std::optional<T> &arg, FormatContext &ctx) const
-//     -> decltype(auto) {
-//     if (arg) {
-//       return fmt::format_to(ctx.out(), "{}", *arg);
-//     } else {
-//       return fmt::format_to(ctx.out(), "((empty))");
-//     }
-//   }
-// };
-// }// namespace fmt
-
-
 template<typename ReorderMask, typename Tab>
 database_table tab_to_db_tab(const Tab &tab) {
   database_table new_tab;

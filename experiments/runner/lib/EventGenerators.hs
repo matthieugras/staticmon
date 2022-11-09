@@ -304,6 +304,20 @@ $( deriveJSON
      ''OnceAndEqConfig
  )
 
+data OnceInRightSinceConfig = OnceInRightSinceConfig
+  { ors_eventrate :: Int
+  }
+  deriving (Show)
+
+$( deriveJSON
+     defaultOptions
+       { fieldLabelModifier = drop 4,
+         constructorTagModifier = map toLower,
+         sumEncoding = ObjectWithSingleField
+       }
+     ''OnceInRightSinceConfig
+ )
+
 data SinceUntilConfig = SinceUntilConfig
   { siut_evr :: Int,
     siut_vars :: VarSubsetOptions,
@@ -353,6 +367,7 @@ data OperatorConfig
   | ExistsOperator ExistsConfig
   | TemporalOperator TemporalConfig
   | OnceAndEqOperator OnceAndEqConfig
+  | OnceInRightSinceOperator OnceInRightSinceConfig
   deriving (Show)
 
 $( deriveJSON
@@ -520,9 +535,9 @@ getBenchName OperatorBenchmark {..} =
           ExistsOperator ExistsConfig {..} ->
             "exists_" +| ex_n |+ "_" +| ex_predn |+ "_" +| ex_size |+ ""
           OnceAndEqOperator OnceAndEqConfig {..} ->
-            "once_and_not_"
-              +| oa_eventrate
-              |+ ""
+            "once_and_not_" +| oa_eventrate |+ ""
+          OnceInRightSinceOperator OnceInRightSinceConfig {..} ->
+            "once_in_right_since_" +| ors_eventrate |+ ""
           TemporalOperator TemporalConfig {..} ->
             case tc_suboperator of
               PrevOperator PrevConfig {..} ->
@@ -861,6 +876,27 @@ onceAndNotBenchGen log_f sig_f fo_f nts ntp evr =
               outputRandomEvents "A" newEvPerTp 1
           endOutput
 
+onceInRightSinceBenchGen log_f sig_f fo_f nts ntp evr =
+  let newEvPerTp = evr `div` ntp
+   in do
+        T.writeFile fo_f "B(x) SINCE[1, *) (ONCE A(x))"
+        withFile
+          sig_f
+          WriteMode
+          ( \h -> do
+              addPredToSig "B" 1 h
+              addPredToSig "A" 1 h
+          )
+        withPrintState log_f $ do
+          forM_ [0 .. nts] $ \i ->
+            forM_ [0 .. (ntp - 1)] $ \_ -> do
+              newDb i
+              if i == (nts `div` 2)
+                then outputNewEvent "A" [5]
+                else outputRandomEvents "A" newEvPerTp 1
+              outputNewEvent "B" [5]
+          endOutput
+
 temporalBenchGen log_f sig_f fo_f nts ntp TemporalConfig {..} =
   case tc_suboperator of
     PrevOperator PrevConfig {..} -> do
@@ -928,6 +964,8 @@ generateLogForBenchmark log_f sig_f fo_f OperatorBenchmark {..} =
     TemporalOperator tempconf -> temporalBenchGen log_f sig_f fo_f op_numts op_numtpperts tempconf
     OnceAndEqOperator OnceAndEqConfig {..} ->
       onceAndNotBenchGen log_f sig_f fo_f op_numts op_numtpperts oa_eventrate
+    OnceInRightSinceOperator OnceInRightSinceConfig {..} ->
+      onceInRightSinceBenchGen log_f sig_f fo_f op_numts op_numtpperts ors_eventrate
 
 generateRandomLog :: FilePath -> Signature -> ReaderT Flags IO ()
 generateRandomLog fp sig =

@@ -107,6 +107,7 @@ struct builtin_pred {
   using csts = typename PredComp::csts;
   using ResL = typename PredComp::ResL;
   using ResT = typename PredComp::ResT;
+  static constexpr bool DiffRes = false;
 
   template<typename Row, typename... VarIdxs>
   ResT project_event_vars(const Row &row, mp_list<VarIdxs...>) {
@@ -169,6 +170,7 @@ struct mpredicate {
   using csts = typename PredComp::csts;
   using ResL = typename PredComp::ResL;
   using ResT = typename PredComp::ResT;
+  static constexpr bool DiffRes = false;
 
   template<typename Event, typename... VarTys, typename... VarIdxs>
   ResT project_event_vars(const Event &e, std::tuple<VarTys...>,

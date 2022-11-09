@@ -9,7 +9,7 @@ if(USE_JEMALLOC)
 endif()
 
 target_link_libraries(staticmon CONAN_PKG::boost CONAN_PKG::fmt
-                      CONAN_PKG::abseil foonathan::lexy)
+                      CONAN_PKG::abseil foonathan::lexy immer)
 target_compile_options(staticmon PRIVATE -Wall -Wextra -Wconversion
                                          -Wsign-conversion)
 if(ENABLE_TRACE_TIME)

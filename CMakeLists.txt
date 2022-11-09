@@ -48,16 +48,17 @@ if(TEST_LLD AND (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
   add_link_options(-fuse-ld=lld)
 endif()
 
-if(ENABLE_SANITIZERS)
-  add_link_options(-fsanitize=address,undefined)
-  add_compile_options(-fsanitize=address,undefined)
-endif()
+# if(ENABLE_SANITIZERS)
+#   add_link_options(-fsanitize=address,undefined)
+#   add_compile_options(-fsanitize=address,undefined)
+# endif()
 
 add_link_options(-static-libstdc++)
 
 if(ENABLE_FILE_INPUT)
   include(cmake/lexy.cmake)
 endif()
+include(cmake/immer.cmake)
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-fdiagnostics-color=always)
