@@ -152,10 +152,11 @@ requires(
   !Interval::is_infinite) struct lower_bnd_mixin<is_once, T2, Interval, Super> {
   void drop_too_old_prev(std::size_t ts) {
     auto self = static_cast<Super *>(this);
-    for (; !data_prev.empty() && Interval::gt_upper(ts - data_prev.front_ts());
+    for (;
+         !data_prev.empty() && Interval::gt_upper(ts - data_prev.front().first);
          data_prev.pop_front()) {
       if constexpr (!is_once) {
-        decltype(auto) tab = data_prev.front_tab();
+        const auto &tab = data_prev.front().second;
         if (tab) {
           for (const auto &e : *tab)
             self->drop_tuple_from_all_data(e);
@@ -219,11 +220,10 @@ requires(
 
   void drop_too_old_in(std::size_t ts) {
     for (; !data_in.empty(); data_in.pop_front()) {
-      auto old_ts = data_in.front_ts();
+      const auto &[old_ts, tab] = data_in.front();
       assert(ts >= old_ts);
       if (Interval::leq_upper(ts - old_ts))
         break;
-      decltype(auto) tab = data_in.front_tab();
       if (tab) {
         for (const auto &e : *tab)
           maybe_drop_from_tuple_in(old_ts, e);
@@ -272,8 +272,7 @@ struct base_mixin
 
     if constexpr (!Interval::contains(0)) {
       for (; !this->data_prev.empty(); this->data_prev.pop_front()) {
-        std::size_t old_ts = this->data_prev.front_ts();
-        decltype(auto) tab = this->data_prev.front_tab();
+        auto &[old_ts, tab] = this->data_prev.front();
         assert(old_ts <= ts);
         if (Interval::lt_lower(ts - old_ts))
           break;
