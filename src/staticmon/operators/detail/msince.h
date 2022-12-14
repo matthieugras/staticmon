@@ -195,20 +195,16 @@ struct finite_bnd_mixin<false, T2, Super> {
   tuple_buf_t all_data_counted;
 };
 
-template<bool is_once, bool diff_input, typename T2, typename Interval,
-         typename Super>
+template<bool is_once, typename T2, typename Interval, typename Super>
 struct upper_bnd_mixin
-    : lower_bnd_mixin<
-        is_once, T2, Interval,
-        upper_bnd_mixin<is_once, diff_input, T2, Interval, Super>> {};
+    : lower_bnd_mixin<is_once, T2, Interval,
+                      upper_bnd_mixin<is_once, T2, Interval, Super>> {};
 
-template<bool is_once, bool diff_input, typename T2, typename Interval,
-         typename Super>
-requires(!Interval::is_infinite) struct upper_bnd_mixin<is_once, diff_input, T2,
-                                                        Interval, Super>
-    : lower_bnd_mixin<
-        is_once, T2, Interval,
-        upper_bnd_mixin<is_once, diff_input, T2, Interval, Super>>,
+template<bool is_once, typename T2, typename Interval, typename Super>
+requires(
+  !Interval::is_infinite) struct upper_bnd_mixin<is_once, T2, Interval, Super>
+    : lower_bnd_mixin<is_once, T2, Interval,
+                      upper_bnd_mixin<is_once, T2, Interval, Super>>,
       finite_bnd_mixin<is_once, T2, Super> {
   using table_buf_t = table_buf<T2>;
 
@@ -244,11 +240,11 @@ requires(!Interval::is_infinite) struct upper_bnd_mixin<is_once, diff_input, T2,
   table_buf_t data_in;
 };
 
-template<bool is_once, bool diff_input, typename AggInfo, typename Interval,
-         typename L2, typename T2, typename Super>
+template<bool is_once, typename AggInfo, typename Interval, typename L2,
+         typename T2, typename Super>
 struct base_mixin
     : aggregation_mixin<is_once && Interval::is_infinite, AggInfo, L2, T2>,
-      upper_bnd_mixin<is_once, diff_input, T2, Interval, Super> {
+      upper_bnd_mixin<is_once, T2, Interval, Super> {
   using tab2_t = table_util::tab_t_of_row_t<T2>;
 
   void update_ts_buf(const ts_list &ts) {
@@ -328,7 +324,7 @@ template<typename AggInfo, bool left_negated, typename Interval,
          typename MFormula1, typename MFormula2>
 struct since_impl
     : base_mixin<
-        false, MFormula2::DiffRes, AggInfo, Interval, typename MFormula2::ResL,
+        false, AggInfo, Interval, typename MFormula2::ResL,
         typename MFormula2::ResT,
         since_impl<AggInfo, left_negated, Interval, MFormula1, MFormula2>> {
   using Base = typename since_impl::base_mixin;
@@ -338,6 +334,7 @@ struct since_impl
   using T1 = typename MFormula1::ResT;
   using T2 = typename MFormula2::ResT;
 
+  using tuple_buf_t = mp_rename<T2, tuple_buf>;
   using ResL = typename Base::ResL;
   using ResT = typename Base::ResT;
   using tab1_t = table_util::tab_t_of_row_t<T1>;
@@ -423,13 +420,13 @@ struct since_impl
   MFormula2 f2_;
   boost::container::devector<std::optional<tab1_t>> f1_buf_;
   boost::container::devector<std::optional<tab2_t>> f2_buf_;
-  tuple_buf<T2> tuple_since;
+  tuple_buf_t tuple_since;
   bool skew_ = false;
 };
 
 template<typename AggInfo, typename Interval, typename MFormula>
-struct once_impl : base_mixin<true, MFormula::DiffRes, AggInfo, Interval,
-                              typename MFormula::ResL, typename MFormula::ResT,
+struct once_impl : base_mixin<true, AggInfo, Interval, typename MFormula::ResL,
+                              typename MFormula::ResT,
                               once_impl<AggInfo, Interval, MFormula>> {
   using Base = typename once_impl::base_mixin;
   using ResL = typename Base::ResL;
