@@ -286,7 +286,7 @@ struct base_mixin
         }
         if constexpr (!Interval::is_infinite) {
           assert(this->data_in.empty() || old_ts >= this->data_in.back().first);
-          this->data_in.add_ts_table(old_ts, std::move(tab));
+          this->data_in.emplace_back(old_ts, std::move(tab));
         }
       }
     }
@@ -307,11 +307,11 @@ struct base_mixin
       }
       if constexpr (!Interval::is_infinite) {
         assert(this->data_in.empty() || nts_ >= this->data_in.back().first);
-        this->data_in.add_ts_table(nts_, std::move(tab_r));
+        this->data_in.emplace_back(nts_, std::move(tab_r));
       }
     } else {
       assert(this->data_prev.empty() || nts_ >= this->data_prev.back().first);
-      this->data_prev.add_ts_table(nts_, std::move(tab_r));
+      this->data_prev.emplace_back(nts_, std::move(tab_r));
     }
   }
 
