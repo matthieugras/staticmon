@@ -1,5 +1,6 @@
 #pragma once
 #include <boost/mp11.hpp>
+#include <boost/variant2.hpp>
 #include <cstdint>
 #include <optional>
 #include <staticmon/common/mp_helpers.h>
@@ -173,15 +174,16 @@ struct mpredicate {
   template<typename Event, typename... VarTys, typename... VarIdxs>
   ResT project_event_vars(const Event &e, std::tuple<VarTys...>,
                           mp_list<VarIdxs...>) {
-    return std::tuple(std::get<VarTys>(e[VarIdxs::value])...);
+    return std::tuple(boost::variant2::get<VarTys>(e[VarIdxs::value])...);
   }
 
   template<typename Event, typename... CstTys, typename... CstIdxs,
            typename... Csts>
   bool sat_cst_constraints(const Event &e, std::tuple<CstTys...>,
                            mp_list<CstIdxs...>, mp_list<Csts...>) {
-    return (true && ... &&
-            (std::get<CstTys>(e[CstIdxs::value]) == Csts::cst::value));
+    return (
+      true && ... &&
+      (boost::variant2::get<CstTys>(e[CstIdxs::value]) == Csts::cst::value));
   }
 
   template<typename Event, typename FstVarIdx, typename... VarIdxs>

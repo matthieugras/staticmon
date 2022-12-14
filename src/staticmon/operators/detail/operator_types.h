@@ -1,5 +1,6 @@
 #pragma once
 #include <absl/container/flat_hash_map.h>
+#include <boost/variant2.hpp>
 #include <cstdint>
 #include <fmt/format.h>
 #include <staticmon/common/mp_helpers.h>
@@ -11,7 +12,7 @@
 
 using pred_id_t = std::size_t;
 using ts_t = std::size_t;
-using event_data = std::variant<std::int64_t, double, std::string>;
+using event_data = boost::variant2::variant<std::int64_t, double, std::string>;
 using event = std::vector<event_data>;
 using database_table = std::vector<event>;
 using database = absl::flat_hash_map<pred_id_t, std::vector<database_table>>;
@@ -42,7 +43,7 @@ struct fmt::formatter<std::variant<Args...>, char> : trivial_parser {
 
 template<typename T>
 event_data event_data_from_value(T &&val) {
-  return event_data(std::in_place_type<T>, std::forward<T>(val));
+  return event_data(boost::variant2::in_place_type<T>, std::forward<T>(val));
 };
 
 template<typename Tup>

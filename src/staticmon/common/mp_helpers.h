@@ -115,6 +115,7 @@ using mp_find_partial = typename mp_find_partial_impl<L, V>::type;
 template<typename T, typename... Args>
 std::vector<std::remove_cvref_t<T>> make_vector(T &&fst_arg, Args &&...args) {
   std::vector<std::remove_cvref_t<T>> res;
+  res.reserve(1 + sizeof...(Args));
   res.emplace_back(std::forward<T>(fst_arg));
   (((void) res.emplace_back(std::forward<Args>(args))), ...);
   return res;
