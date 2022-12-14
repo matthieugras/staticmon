@@ -44,7 +44,7 @@ struct aggregation_mixin_base {
     if (tab.empty())
       return std::nullopt;
     else
-      return std::move(tab);
+      return tab;
   }
 
   Aggregation agg_;
@@ -118,7 +118,7 @@ struct aggregation_mixin<is_no_remove, no_aggregation, L2, T2> {
     if (tab.empty())
       return std::nullopt;
     else
-      return std::move(tab);
+      return tab;
   }
 
   void tuple_in_update(const T2 &e, size_t ts) {
