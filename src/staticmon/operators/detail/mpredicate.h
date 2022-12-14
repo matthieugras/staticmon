@@ -208,6 +208,7 @@ struct mpredicate {
     const auto &evll = it->second;
     for (const auto &evl : evll) {
       res_tab_t tab;
+      tab.reserve(evl.size());
       for (const auto &ev : evl) {
         if (sat_cst_constraints(ev, cst_tys{}, cst_idxs{}, csts{}) &&
             sat_var_constraints(ev, var_non_trivial_groups{}))
