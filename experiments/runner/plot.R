@@ -1,6 +1,8 @@
 library(ggplot2)
 library(readr)
 library(dplyr)
+library(xtable)
+library(tidyr)
 
 make_grid_plot <- function(data, xvar, rvar, colvar) {
   dodge_text = position_dodge(width = 0.9)
@@ -87,6 +89,8 @@ p3_data <- since_rand_data %>% filter(n1 == 1, n2 == 3, prob == 0.001, lbound ==
 print(make_wrap_plot(p3_data, p3_data$monitor, "evr + numts"))
 p4_data <- since_rand_data %>% filter(n1 == 1, n2 == 3, prob == 0.999, lbound == 0, ubound == 10)
 print(make_wrap_plot(p4_data, p4_data$monitor, "evr + numts"))
+
+
 p5_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == ubound, prob == 0.001)
 print(make_wrap_plot(p5_data, p5_data$monitor, "lbound"))
 p6_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == ubound, prob == 0.999)
@@ -97,5 +101,5 @@ p8_data <- since_rand_data %>% filter(evr == 100, numts == 200, n2 == 10, lbound
 print(make_wrap_plot(p8_data, p8_data$monitor, "n1"))
 p9_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == 0, ubound == 10, neg == FALSE)
 print(make_wrap_plot(p9_data, p9_data$monitor, "prob"))
-p10_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == 0, ubound == 10, neg == TRUE)
-print(make_wrap_plot(p10_data, p10_data$monitor, "prob"))
+# p10_data <- since_rand_data %>% filter(evr == 100, numts == 200, n1 == 1, n2 == 3, lbound == 0, ubound == 10, neg == TRUE)
+# print(make_wrap_plot(p10_data, p10_data$monitor, "prob"))

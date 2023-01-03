@@ -168,9 +168,9 @@ p3_4 = [(evr, s, {"randomsubset": [1, 3]}, cstb(0), cstb(10), p, neg)
 p5_6 = [(100, 200, {"randomsubset": [1, 3]}, cstb(b), cstb(b), p, neg)
         for b in [1, 4, 8, 16, 32]
         for (p, neg) in [(0.001, False), (0.999, True)]]
-p7_8 = [(100, 200, {"randomsubset": [i, 10]}, cstb(0), cstb(10), p, neg)
-        for i in [1, 2, 4, 8]
-        for (p, neg) in [(0.001, False), (0.999, True)]]
+p7_8 = [(10000, 50, {"randomsubset": [5, 10]}, cstb(0), cstb(10000000), p, neg)
+        for i in [4]
+        for (p, neg) in [(0.001, False)]]
 p9_10 = [(100, 200, {"randomsubset": [1, 3]}, cstb(0), cstb(10), p, neg)
          for (ps, neg) in [([0.1, 0.15, 0.3], False), ([0.9, 0.85, 0.7], True)]
          for p in ps]
@@ -183,7 +183,7 @@ sincebench = [
             "removeprobability": p
         }
     })
-    for (evr, s, opt, lb, ub, p, neg) in (p1_2 + p3_4 + p5_6 + p7_8 + p9_10)
+    for (evr, s, opt, lb, ub, p, neg) in (p7_8)
 ]
 
 onceandbench = [
@@ -195,7 +195,7 @@ onceandbench = [
 # config = andbench + orbench + existsbench + \
 #     sincebench + oncebench + eventuallybench + prevnxtbench
 
-config = onceandbench
+config = sincebench
 
 print(len(config))
 with open("config.yaml", 'w', encoding='utf8') as conf_out:

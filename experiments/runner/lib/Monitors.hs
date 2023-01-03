@@ -108,7 +108,7 @@ verifyMonitor args =
     aErr = return . Left
 
 monitors :: [Monitor]
-monitors = [monpoly, cppmon, staticmon, verimon]
+monitors = []
 
 monpoly = Monitor {..}
   where
